@@ -177,6 +177,9 @@ def _prepare_chat(req: ChatRequest):
         raise HTTPException(status_code=404, detail=f"character not found: {req.character_id}")
     history = memory_store.load_history(req.session_id) or _histories.setdefault(req.session_id, [])
     _histories[req.session_id] = history
+    # 첫 턴: 첫 메시지를 '개장 장면'으로 히스토리에 고정 → 모델이 시작 상황을 인식함
+    if not history and character.get("first_message"):
+        history.append({"role": "assistant", "content": character["first_message"]})
     intent_result = classifier.classify(req.effective_message())
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
     state = fsm.commit(req.session_id, intent_result.delta, decay=decay)
@@ -264,6 +267,9 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     history = memory_store.load_history(req.session_id) or _histories.setdefault(req.session_id, [])
     _histories[req.session_id] = history
+    # 첫 턴: 첫 메시지를 '개장 장면'으로 히스토리에 고정
+    if not history and character.get("first_message"):
+        history.append({"role": "assistant", "content": character["first_message"]})
 
     # 1) 감성 분류 (메인 요청과 병렬 실행 지점)
     intent_result = classifier.classify(req.effective_message())
