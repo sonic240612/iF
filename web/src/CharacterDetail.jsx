@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-export default function CharacterDetail({ character, onBack, onStart }) {
+export default function CharacterDetail({ character, user, onBack, onStart, onEdit }) {
   return (
     <div className="detail">
       <button className="back-btn" onClick={onBack}>← 목록</button>
@@ -12,6 +12,9 @@ export default function CharacterDetail({ character, onBack, onStart }) {
           <div className="hero-tags">
             <span className="pill genre">{character.genre}</span>
             {character.tags.map(t => <span key={t} className="pill">{t}</span>)}
+            {character.creator === user && (
+              <button className="pill edit-pill" onClick={onEdit}>✏️ 수정</button>
+            )}
           </div>
         </div>
       </div>

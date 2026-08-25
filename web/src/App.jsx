@@ -3,13 +3,14 @@ import Home from './Home.jsx'
 import CharacterDetail from './CharacterDetail.jsx'
 import Chat from './Chat.jsx'
 import CreateCharacter from './CreateCharacter.jsx'
+import EditCharacter from './EditCharacter.jsx'
 import AuthPage from './AuthPage.jsx'
 import { getAuth, clearAuth, authHeaders, notifyAuthExpired, setOnAuthExpired } from './api.js'
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => getAuth()?.nickname || null)
   const [characters, setCharacters] = useState([])
-  const [view, setView] = useState('home') // home | detail | chat | create
+  const [view, setView] = useState('home') // home | detail | chat | create | edit
   const [selectedId, setSelectedId] = useState(null)
   const [authNotice, setAuthNotice] = useState('')
 
@@ -65,12 +66,23 @@ export default function App() {
   if (view === 'create') {
     return <CreateCharacter onCreated={(card) => { setSelectedId(card.id); refresh(); setView('chat') }} onBack={() => setView('home')} />
   }
+  if (view === 'edit' && selected) {
+    return (
+      <EditCharacter
+        character={selected}
+        onSaved={(card) => { refresh(); setSelectedId(card.id); setView('chat') }}
+        onBack={() => setView('detail')}
+      />
+    )
+  }
   if (view === 'detail' && selected) {
     return (
       <CharacterDetail
         character={selected}
+        user={authUser}
         onBack={() => setView('home')}
         onStart={() => { setView('chat'); window.scrollTo(0, 0) }}
+        onEdit={() => { setView('edit'); window.scrollTo(0, 0) }}
       />
     )
   }
