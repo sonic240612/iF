@@ -279,6 +279,32 @@ def session_state(session_id: str) -> dict:
         raise HTTPException(status_code=404, detail="session not found")
     return fsm.get(session_id).to_dict()
 
+@app.get("/debug")
+def debug_bundle() -> dict:
+    """배포 진단용: 서버리스 함수 내부에서 실제 파일들이 어디에 있는지 표시."""
+    import sys
+
+    def peek(p: Path):
+        try:
+            return {"path": str(p), "exists": p.exists(),
+                    "children": [c.name for c in p.iterdir()][:20] if p.is_dir() else None}
+        except Exception as e:
+            return {"path": str(p), "error": str(e)}
+
+    return {
+        "cwd": str(Path.cwd()),
+        "python": sys.version.split()[0],
+        "root": peek(ROOT),
+        "root_characters": peek(ROOT / "characters"),
+        "root_configs_base": peek(ROOT / "configs" / "base.toml"),
+        "task_root": peek(Path("/").anchor + "var/task" if Path("/var/task").exists() else Path.cwd()),
+        "env_keys_present": sorted(
+            k for k in ("GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "REDIS_URL", "VERCEL")
+            if os.environ.get(k)
+        ),
+    }
+
+
 # ── 정적 SPA 서빙 (배포: web/dist가 있으면 단일 서비스로 운영) ──
 _DIST = ROOT / "web" / "dist"
 if _DIST.exists():
