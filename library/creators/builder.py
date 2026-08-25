@@ -80,6 +80,26 @@ def save_card(card: dict) -> dict:
     return card
 
 
+def delete_card(character_id: str) -> bool:
+    """캐릭터 카드 삭제 (파일 + Redis). 하나라도 지워지면 True."""
+    deleted = False
+    matches = list(CHARACTERS_DIR.rglob(f"{character_id}.json"))
+    for p in matches:
+        try:
+            p.unlink()
+            deleted = True
+        except OSError:
+            pass
+    r = _redis()
+    if r:
+        try:
+            if r.delete(CARD_KEY_PREFIX + character_id):
+                deleted = True
+        except Exception:
+            pass
+    return deleted
+
+
 def load_character(character_id: str) -> dict | None:
     matches = list(CHARACTERS_DIR.rglob(f"{character_id}.json"))
     if matches:

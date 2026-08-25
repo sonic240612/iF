@@ -16,6 +16,23 @@ def force_mock_inference(monkeypatch):
     monkeypatch.setattr(gemma_client, "embed", lambda text: None)
 
 
+@pytest.fixture(autouse=True)
+def isolate_characters_dir(monkeypatch, tmp_path):
+    """테스트에서 생성한 캐릭터 카드가 실제 characters/ 디렉토리를 오염시키지 않도록 격리.
+    기존 시드 카드는 임시 디렉토리로 복사해 목록 조회 테스트가 계속 동작하도록 한다."""
+    import shutil
+    from library.creators import builder
+
+    real_dir = builder.CHARACTERS_DIR
+    fake_dir = tmp_path / "characters"
+    if real_dir.exists():
+        shutil.copytree(real_dir, fake_dir)
+        # 실제 유저 제작 카드까지 복사되지 않도록 루트의 테스트 산출물은 제외
+        for f in fake_dir.glob("char_custom_*.json"):
+            f.unlink()
+    monkeypatch.setattr(builder, "CHARACTERS_DIR", fake_dir)
+
+
 @pytest.fixture()
 def tmp_memory_db(monkeypatch, tmp_path):
     """memory store를 임시 DB로 격리."""

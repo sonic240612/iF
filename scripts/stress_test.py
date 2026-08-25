@@ -57,6 +57,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", default="http://127.0.0.1:8000")
     ap.add_argument("--chars", type=int, default=7000)
+    ap.add_argument("--keep", action="store_true", help="테스트 후 캐릭터를 삭제하지 않고 유지")
     args = ap.parse_args()
     base = args.base_url.rstrip("/")
 
@@ -131,6 +132,15 @@ def main() -> None:
 
     verdict = "✅ 통과" if done_event and not error_event else "❌ 실패"
     print(f"\n결과: {verdict}")
+
+    # 4) 정리 (기본): 테스트용 캐릭터 삭제
+    if not args.keep:
+        req = urllib.request.Request(f"{base}/api/characters/{saved['id']}", method="DELETE")
+        try:
+            urllib.request.urlopen(req, timeout=30)
+            print("[정리] 테스트 캐릭터 삭제 완료 (--keep 으로 유지 가능)")
+        except Exception as e:
+            print(f"[정리] 삭제 실패: {e}")
 
 
 if __name__ == "__main__":

@@ -132,6 +132,15 @@ def ai_assist_character(req: AssistRequest) -> dict:
         raise HTTPException(status_code=502, detail=f"AI 생성 실패: {e}")
 
 
+@app.delete("/characters/{character_id}")
+def delete_character(character_id: str) -> dict:
+    """캐릭터 카드 삭제."""
+    if builder.load_character(character_id) is None:
+        raise HTTPException(status_code=404, detail=f"character not found: {character_id}")
+    builder.delete_card(character_id)
+    return {"status": "deleted", "id": character_id}
+
+
 @app.get("/sessions/{session_id}/history")
 def get_history(session_id: str) -> dict:
     """재접속 시 이전 대화 복원용."""
