@@ -1,11 +1,19 @@
 import React, { useState } from 'react'
 
-const GENRES = ['전체', '로맨스', 'RPG', '다크 로맨스', '무협']
-
 export default function Home({ characters, onPick, onCreate }) {
   const [genre, setGenre] = useState('전체')
   const safeList = Array.isArray(characters) ? characters : []
-  const list = genre === '전체' ? safeList : safeList.filter(c => c.genre === genre)
+
+  // 장르 필터: 전체 / 커스텀(유저 제작) / 캐릭터들이 실제 사용하는 장르 동적 수집
+  const genres = ['전체', '커스텀']
+  for (const c of safeList) {
+    if (c.genre && !genres.includes(c.genre)) genres.push(c.genre)
+  }
+
+  let list
+  if (genre === '전체') list = safeList
+  else if (genre === '커스텀') list = safeList.filter(c => (c.tags || []).includes('커스텀'))
+  else list = safeList.filter(c => c.genre === genre)
 
   return (
     <div className="home">
@@ -16,7 +24,7 @@ export default function Home({ characters, onPick, onCreate }) {
       </header>
 
       <nav className="genre-nav">
-        {GENRES.map(g => (
+        {genres.map(g => (
           <button
             key={g}
             className={g === genre ? 'active' : ''}
