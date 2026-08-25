@@ -64,8 +64,10 @@ def validate_card(card: dict) -> dict:
     return card
 
 
-def save_card(card: dict) -> dict:
+def save_card(card: dict, creator: str | None = None) -> dict:
     card = validate_card(card)
+    if creator:
+        card["creator"] = creator
     # 유저 제작 카드 식별용 태그 자동 부여
     tags = [t for t in card.get("tags", []) if t != "커스텀"]
     card["tags"] = ["커스텀"] + tags
@@ -82,6 +84,18 @@ def save_card(card: dict) -> dict:
             raise ValidationError("캐릭터 저장 실패: 쓰기 가능한 스토리지가 없습니다 (REDIS_URL 확인)")
         r.set(CARD_KEY_PREFIX + card["id"], json.dumps(card, ensure_ascii=False))
     return card
+
+
+def update_card(character_id: str, updates: dict, user: str) -> dict:
+    """기존 카드 부분 수정. 제작자 본인만 가능. id/creator는 변경 불가."""
+    existing = load_character(character_id)
+    if not existing:
+        raise KeyError(character_id)
+    if existing.get("creator") != user:
+        raise PermissionError("본인이 만든 캐릭터만 수정할 수 있습니다.")
+
+    merged = {**existing, **{k: v for k, v in updates.items() if k not in ("id", "creator")}}
+    return save_card(merged)  # creator는 기존 값 유지
 
 
 def delete_card(character_id: str) -> bool:

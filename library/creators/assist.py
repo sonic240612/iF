@@ -49,7 +49,7 @@ def _slugify(name: str) -> str:
     return f"char_{base or 'custom'}_{int(__import__('time').time()) % 100000}"
 
 
-def generate_card(system_prompt: str, name: str | None = None) -> dict:
+def generate_card(system_prompt: str, name: str | None = None, creator: str | None = None) -> dict:
     """시스템 프롬프트 → 완성된 캐릭터 카드 생성 후 저장."""
     raw = gemma_client.generate(ASSIST_PROMPT.format(system_prompt=system_prompt), mood="warm")
     data = _extract_json(raw)
@@ -75,4 +75,4 @@ def generate_card(system_prompt: str, name: str | None = None) -> dict:
             card["example_dialogs"].append({"user": str(d["user"])[:300], "character": str(d["character"])[:500]})
     if not card["first_message"]:
         raise AssistError("첫 메시지 생성에 실패했습니다. 시스템 프롬프트를 더 구체적으로 적어주세요.")
-    return builder.save_card(card)
+    return builder.save_card(card, creator=creator)

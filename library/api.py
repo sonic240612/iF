@@ -183,7 +183,7 @@ def character_detail(character_id: str) -> dict:
 @app.post("/characters")
 def create_character(req: CharacterCardRequest, user: str = Depends(current_user)) -> dict:
     try:
-        return builder.save_card(req.model_dump())
+        return builder.save_card(req.model_dump(), creator=user)
     except builder.ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -197,7 +197,7 @@ class AssistRequest(BaseModel):
 def ai_assist_character(req: AssistRequest, user: str = Depends(current_user)) -> dict:
     """시스템 프롬프트만으로 나머지 필드를 AI가 자동 생성"""
     try:
-        return creator_assist.generate_card(req.system_prompt, req.name)
+        return creator_assist.generate_card(req.system_prompt, req.name, creator=user)
     except creator_assist.AssistError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
@@ -211,6 +211,36 @@ def delete_character(character_id: str, user: str = Depends(current_user)) -> di
         raise HTTPException(status_code=404, detail=f"character not found: {character_id}")
     builder.delete_card(character_id)
     return {"status": "deleted", "id": character_id}
+
+
+class EditCharacterRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=40)
+    system_prompt: str | None = Field(default=None, max_length=4_000_000)
+    first_message: str | None = Field(default=None, max_length=4000)
+    tags: list[str] | None = None
+    greeting_mood: str | None = None
+    genre: str | None = Field(default=None, max_length=30)
+    emoji: str | None = Field(default=None, max_length=8)
+    gradient: str | None = Field(default=None, max_length=200)
+    intro: str | None = Field(default=None, max_length=2000)
+    worldview: str | None = Field(default=None, max_length=2000)
+    initial_setup: str | None = Field(default=None, max_length=1000)
+    example_dialogs: list[dict] | None = None
+
+
+@app.put("/characters/{character_id}")
+def edit_character(character_id: str, req: EditCharacterRequest, user: str = Depends(current_user)) -> dict:
+    """캐릭터 카드 부분 수정 — 제작자 본인만 가능."""
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    try:
+        return builder.update_card(character_id, updates, user=user)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"character not found: {character_id}")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except builder.ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
 
 
 @app.get("/sessions/{session_id}/history")
@@ -407,54 +437,6 @@ def session_state(session_id: str, user: str = Depends(current_user)) -> dict:
     if not fsm.exists(skey):
         raise HTTPException(status_code=404, detail="session not found")
     return fsm.get(skey).to_dict()
-
-@app.get("/debug")
-def debug_bundle(user: str = Depends(current_user)) -> dict:
-    """배포 진단용: 서버리스 함수 내부에서 실제 파일들이 어디에 있는지 표시."""
-    import sys
-
-    def peek(p: Path):
-        try:
-            return {"path": str(p), "exists": p.exists(),
-                    "children": [c.name for c in p.iterdir()][:20] if p.is_dir() else None}
-        except Exception as e:
-            return {"path": str(p), "error": str(e)}
-
-    return {
-        "cwd": str(Path.cwd()),
-        "python": sys.version.split()[0],
-        "root": peek(ROOT),
-        "root_characters": peek(ROOT / "characters"),
-        "root_configs_base": peek(ROOT / "configs" / "base.toml"),
-        "task_root": peek(Path("/").anchor + "var/task" if Path("/var/task").exists() else Path.cwd()),
-        "env_keys_present": sorted(
-            k for k in ("GOOGLE_API_KEY", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY_3", "REDIS_URL", "VERCEL")
-            if os.environ.get(k)
-        ),
-    }
-
-
-# ── /api 접두사 이중 라우트 (서버리스 플랫폼의 리라이트 경로 처리 차이 대응) ──
-# 미들웨어가 /api를 벗겨주지만, 일부 플랫폼은 원본 경로를 그대로 전달하므로
-# 양쪽 모두에서 라우트가 매칭되도록 /api/* 복제본을 정적 마운트보다 앞에 등록한다.
-from starlette.routing import Route as _StarletteRoute
-
-
-def _register_api_prefixed_duplicates() -> None:
-    extras = []
-    for route in app.router.routes:
-        if isinstance(route, _StarletteRoute) and not route.path.startswith("/api"):
-            extras.append(_StarletteRoute(
-                "/api" + route.path,
-                endpoint=route.endpoint,
-                methods=route.methods,
-                name=route.name + "_api_prefixed",
-                include_in_schema=False,
-            ))
-    app.router.routes.extend(extras)
-
-
-_register_api_prefixed_duplicates()
 
 # ── 정적 SPA 서빙 (배포: web/dist가 있으면 단일 서비스로 운영) ──
 _DIST = ROOT / "web" / "dist"

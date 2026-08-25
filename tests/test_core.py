@@ -126,6 +126,37 @@ def test_character_card_with_initial_setup(api):
     detail = client.get(f"/characters/{card['id']}").json()
     assert detail["initial_setup"] == "첫 만남은 비 오는 정류장에서"
 
+def test_character_edit_ownership(api):
+    """제작자만 수정 가능 + 타인/공식 카드는 403"""
+    r = api.post("/characters", json={
+        "id": f"char_own_{random.randint(1000,9999)}",
+        "name": "내캐릭", "system_prompt": "당신은 테스트 캐릭터입니다.",
+        "first_message": "hi", "tags": ["테스트"], "intro": "소개",
+    })
+    assert r.status_code == 200
+    cid = r.json()["id"]
+    assert r.json()["creator"] == "테스터"
+    assert "커스텀" in r.json()["tags"]
+
+    # 제작자 본인 수정 → 성공
+    r = api.put(f"/characters/{cid}", json={"name": "수정된이름"})
+    assert r.status_code == 200 and r.json()["name"] == "수정된이름"
+
+    # 다른 유저가 수정 시도 → 403
+    other = TestClient(app)
+    other.post("/auth/register", json={"nickname": "다른사람", "password": "pw12345678"})
+    tok = other.post("/auth/login", json={"nickname": "다른사람", "password": "pw12345678"}).json()["token"]
+    r = other.put(f"/characters/{cid}", json={"name": "해킹시도"},
+                  headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 403
+
+
+def test_official_card_not_editable(api):
+    """공식 카드(제작자 없음)는 누구도 수정 불가 → 403"""
+    r = api.put("/characters/char_alice_01", json={"name": "바꾸기 시도"})
+    assert r.status_code == 403
+
+
 def test_extract_json_plain():
     data = _extract_json('{"first_message": "안녕", "tags": ["a"]}')
     assert data["first_message"] == "안녕"

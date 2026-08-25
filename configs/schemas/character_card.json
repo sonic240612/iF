@@ -24,6 +24,10 @@
       "maxLength": 1000,
       "description": "세션 시작 시에만 읽히는 휘발성 도입부 설정 (약 20턴 후 자연 소멸)"
     },
+    "creator": {
+      "type": "string",
+      "description": "제작자 닉네임 (공식 카드는 없음)"
+    },
     "example_dialogs": {
       "type": "array",
       "items": {
