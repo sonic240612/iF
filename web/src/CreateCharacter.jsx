@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { authHeaders } from './api.js'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #7aa2f7, #b060ff)',
@@ -40,7 +41,7 @@ export default function CreateCharacter({ onCreated, onBack }) {
     try {
       const res = await fetch('/api/characters', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           id: `char_custom_${Date.now() % 10000000}`,
           name: name.trim(),
@@ -72,7 +73,7 @@ export default function CreateCharacter({ onCreated, onBack }) {
     try {
       const res = await fetch('/api/characters/assist', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ system_prompt: systemPrompt.trim(), name: name.trim() }),
       })
       const data = await res.json()

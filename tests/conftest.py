@@ -41,3 +41,24 @@ def tmp_memory_db(monkeypatch, tmp_path):
     db = tmp_path / "test_memory.db"
     monkeypatch.setattr(store, "DB_PATH", db)
     return store
+
+
+@pytest.fixture
+def api(monkeypatch):
+    """인증된 TestClient — 회원가입 후 토큰을 헤더에 자동 첨부."""
+    from fastapi.testclient import TestClient
+
+    # 인증 저장소를 메모리로 격리 (테스트 간 간섭 방지)
+    from library.auth import store as auth_store
+    monkeypatch.setattr(auth_store, "_rc", None)
+    auth_store._mem_users.clear()
+    auth_store._mem_tokens.clear()
+
+    c = TestClient(app) if False else None
+    from library.api import app as fastapi_app
+    c = TestClient(fastapi_app)
+
+    r = c.post("/auth/register", json={"nickname": "테스터", "password": "secret123"})
+    assert r.status_code == 200, r.text
+    c.headers.update({"Authorization": f"Bearer {r.json()['token']}"})
+    return c

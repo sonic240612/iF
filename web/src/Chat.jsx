@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { authHeaders } from './api.js'
 
 const MOOD_THEMES = {
   cold:         { name: '냉담',   accent: '#7aa2f7' },
@@ -39,16 +40,8 @@ function renderRichText(text) {
 }
 
 export default function Chat({ character, onExit }) {
-  // 캐릭터별 고정 세션 ID — 새로고침/재접속해도 대화 유지
-  const [sessionId] = useState(() => {
-    const key = `if_sess_${character.id}`
-    let sid = localStorage.getItem(key)
-    if (!sid) {
-      sid = `web_${Math.random().toString(36).slice(2, 10)}`
-      localStorage.setItem(key, sid)
-    }
-    return sid
-  })
+  // 세션 키는 서버에서 '유저닉네임:캐릭터ID'로 결정 → 어느 기기에서 접속해도 대화 이어짐
+  const sessKey = character.id
   const [messages, setMessages] = useState([{ role: 'assistant', content: character.first_message }])
   const [state, setState] = useState(null)
   const [cards, setCards] = useState([])
@@ -72,7 +65,7 @@ export default function Chat({ character, onExit }) {
 
   // 재접속 시 서버에서 이전 대화 복원
   useEffect(() => {
-    fetch(`/api/sessions/${sessionId}/history`)
+    fetch(`/api/sessions/${sessKey}/history`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => {
         if (data.messages?.length) {
@@ -96,9 +89,9 @@ export default function Chat({ character, onExit }) {
 
   async function savePatch() {
     try {
-      const res = await fetch(`/api/sessions/${sessionId}/user-patch`, {
+      const res = await fetch(`/api/sessions/${sessKey}/user-patch`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ patch: patchText }),
       })
       if (!res.ok) throw new Error()
@@ -107,7 +100,7 @@ export default function Chat({ character, onExit }) {
   }
 
   async function resetChat() {
-    await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }).catch(() => {})
+    await fetch(`/api/sessions/${sessKey}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {})
     setMessages([{ role: 'assistant', content: character.first_message }])
     setState(null)
     setCards([])
@@ -129,11 +122,11 @@ export default function Chat({ character, onExit }) {
     try {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(
           isAction
-            ? { character_id: character.id, session_id: sessionId, action: text }
-            : { character_id: character.id, session_id: sessionId, message: text }
+            ? { character_id: character.id, action: text }
+            : { character_id: character.id, message: text }
         ),
       })
       if (!res.ok || !res.body) throw new Error('stream unavailable')

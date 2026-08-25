@@ -97,8 +97,8 @@ def test_sanitize_reply_strips_meta_blocks():
     assert "호감도" not in clean and "말투 지시" not in clean
     assert "앉으세요" in clean and "자, 앉으세요." in clean
 
-def test_session_patch_endpoints():
-    client = TestClient(app)
+def test_session_patch_endpoints(api):
+    client = api
     sid = "patch_test_sess"
     # 초기값은 빈 문자열
     assert client.get(f"/api/sessions/{sid}/user-patch").json() == {"patch": ""}
@@ -111,8 +111,8 @@ def test_session_patch_endpoints():
     assert client.get(f"/api/sessions/{sid}/user-patch").json()["patch"] == ""
 
 
-def test_character_card_with_initial_setup():
-    client = TestClient(app)
+def test_character_card_with_initial_setup(api):
+    client = api
     card = {
         "id": f"char_meta_{random.randint(1000,9999)}",
         "name": "메타테스트",

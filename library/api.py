@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 import tomllib
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from library.creators import assist as creator_assist
 from library.creators import builder
 from library.fsm import classifier
+from library.auth import store as auth_store
 from library.fsm import session_meta
 from library.fsm.engine import engine as fsm
 from library.inference import gemma_client, narrative
@@ -67,6 +68,24 @@ def sanitize_reply(text: str) -> str:
     cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
+
+def _bearer_token(request: Request) -> str:
+    authz = request.headers.get("authorization", "")
+    return authz[7:].strip() if authz.lower().startswith("bearer ") else ""
+
+
+def current_user(request: Request) -> str:
+    user = auth_store.user_for_token(_bearer_token(request))
+    if not user:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    return user
+
+
+def session_key(user: str, character_id: str) -> str:
+    """유저별 세션 키 — 어느 기기에서 접속해도 같은 대화가 이어지도록 결정적 생성."""
+    return f"{user}:{character_id}"
+
+
 # session_id -> [{"role", "content"}]
 _histories: dict[str, list[dict]] = {}
 
@@ -74,7 +93,7 @@ _histories: dict[str, list[dict]] = {}
 class ChatRequest(BaseModel):
     character_id: str
     message: str = Field(default="", max_length=2000)
-    session_id: str
+    session_id: str = ""
     action: str = Field(default="", max_length=300)  # 선택지 행동 (message와 2진 1)
 
     def effective_message(self) -> str:
@@ -110,6 +129,40 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+# ── 인증 (닉네임 + 비밀번호) ──
+class AuthRequest(BaseModel):
+    nickname: str = Field(min_length=2, max_length=20)
+    password: str = Field(min_length=6, max_length=64)
+
+
+@app.post("/auth/register")
+def register(req: AuthRequest) -> dict:
+    """닉네임+비밀번호로 가입. 성공 시 즉시 로그인(토큰 발급)."""
+    try:
+        token = auth_store.create_user(req.nickname, req.password)
+    except auth_store.NicknameTakenError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except auth_store.ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"token": token, "nickname": req.nickname.strip()}
+
+
+@app.post("/auth/login")
+def login(req: AuthRequest) -> dict:
+    try:
+        token = auth_store.login(req.nickname, req.password)
+    except auth_store.InvalidCredentialsError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    return {"token": token, "nickname": req.nickname.strip()}
+
+
+@app.post("/auth/logout")
+def logout(request: Request, user: str = Depends(current_user)) -> dict:
+    auth_store.revoke_token(_bearer_token(request))
+    return {"status": "ok"}
+
+
+
 @app.get("/characters")
 def characters() -> list[dict]:
     # 목록에는 상세 대화 제외 (가벼운 페이로드)
@@ -128,7 +181,7 @@ def character_detail(character_id: str) -> dict:
 
 
 @app.post("/characters")
-def create_character(req: CharacterCardRequest) -> dict:
+def create_character(req: CharacterCardRequest, user: str = Depends(current_user)) -> dict:
     try:
         return builder.save_card(req.model_dump())
     except builder.ValidationError as e:
@@ -141,7 +194,7 @@ class AssistRequest(BaseModel):
 
 
 @app.post("/characters/assist")
-def ai_assist_character(req: AssistRequest) -> dict:
+def ai_assist_character(req: AssistRequest, user: str = Depends(current_user)) -> dict:
     """시스템 프롬프트만으로 나머지 필드를 AI가 자동 생성"""
     try:
         return creator_assist.generate_card(req.system_prompt, req.name)
@@ -152,7 +205,7 @@ def ai_assist_character(req: AssistRequest) -> dict:
 
 
 @app.delete("/characters/{character_id}")
-def delete_character(character_id: str) -> dict:
+def delete_character(character_id: str, user: str = Depends(current_user)) -> dict:
     """캐릭터 카드 삭제."""
     if builder.load_character(character_id) is None:
         raise HTTPException(status_code=404, detail=f"character not found: {character_id}")
@@ -161,14 +214,15 @@ def delete_character(character_id: str) -> dict:
 
 
 @app.get("/sessions/{session_id}/history")
-def get_history(session_id: str) -> dict:
-    """재접속 시 이전 대화 복원용."""
-    history = memory_store.load_history(session_id)
-    state = fsm.get(session_id) if fsm.exists(session_id) else None
+def get_history(session_id: str, user: str = Depends(current_user)) -> dict:
+    """재접속 시 이전 대화 복원용 (유저별 격리)."""
+    skey = session_key(user, session_id)
+    history = memory_store.load_history(skey)
+    state = fsm.get(skey) if fsm.exists(skey) else None
     return {
         "messages": history,
         "state": state.to_dict() if state else None,
-        "user_patch": session_meta.get_meta(session_id).get("user_patch", ""),
+        "user_patch": session_meta.get_meta(skey).get("user_patch", ""),
     }
 
 
@@ -177,43 +231,47 @@ class UserPatchRequest(BaseModel):
 
 
 @app.get("/sessions/{session_id}/user-patch")
-def get_user_patch(session_id: str) -> dict:
-    return {"patch": session_meta.get_meta(session_id).get("user_patch", "")}
+def get_user_patch(session_id: str, user: str = Depends(current_user)) -> dict:
+    skey = session_key(user, session_id)
+    return {"patch": session_meta.get_meta(skey).get("user_patch", "")}
 
 
 @app.put("/sessions/{session_id}/user-patch")
-def set_user_patch(session_id: str, req: UserPatchRequest) -> dict:
-    session_meta.set_user_patch(session_id, req.patch)
+def set_user_patch(session_id: str, req: UserPatchRequest, user: str = Depends(current_user)) -> dict:
+    skey = session_key(user, session_id)
+    session_meta.set_user_patch(skey, req.patch)
     return {"status": "ok", "patch": (req.patch or "").strip()[:1000]}
 
 
 @app.delete("/sessions/{session_id}")
-def reset_session(session_id: str) -> dict:
+def reset_session(session_id: str, user: str = Depends(current_user)) -> dict:
     """대화 초기화: 히스토리 + FSM 상태 + 장기기억 + 세션 메타 삭제."""
-    _histories.pop(session_id, None)
-    fsm.pop(session_id)
-    memory_store.delete_history(session_id)
-    session_meta.delete(session_id)
+    skey = session_key(user, session_id)
+    _histories.pop(skey, None)
+    fsm.pop(skey)
+    memory_store.delete_history(skey)
+    session_meta.delete(skey)
     return {"status": "reset"}
 
 
-def _prepare_chat(req: ChatRequest):
+def _prepare_chat(req: ChatRequest, user: str):
     """공통 파이프라인 (생성 이전 단계): 검증→감성분류→FSM 커밋→프롬프트 컴파일.
     불변식: FSM 상태 갱신과 기억 주입은 반드시 토큰 생성 전에 완료."""
     character = builder.load_character(req.character_id)
     if character is None:
         raise HTTPException(status_code=404, detail=f"character not found: {req.character_id}")
-    history = memory_store.load_history(req.session_id) or _histories.setdefault(req.session_id, [])
-    _histories[req.session_id] = history
+    skey = session_key(user, req.character_id)
+    history = memory_store.load_history(skey) or _histories.setdefault(skey, [])
+    _histories[skey] = history
     # 첫 턴: 첫 메시지를 '개장 장면'으로 히스토리에 고정 → 모델이 시작 상황을 인식함
     if not history and character.get("first_message"):
         history.append({"role": "assistant", "content": character["first_message"]})
     intent_result = classifier.classify(req.effective_message())
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
-    state = fsm.commit(req.session_id, intent_result.delta, decay=decay)
-    memories = memory_store.search_memories(req.session_id, req.effective_message())
+    state = fsm.commit(skey, intent_result.delta, decay=decay)
+    memories = memory_store.search_memories(skey, req.effective_message())
     # 세션 시작 시 초기 설정 스냅샷 (이미 있으면 기존 값 유지)
-    meta = session_meta.init_if_absent(req.session_id, character.get("initial_setup", ""))
+    meta = session_meta.init_if_absent(skey, character.get("initial_setup", ""))
     prompt = compile_prompt(
         character, state, history, req.message,
         long_term_memories=memories,
@@ -229,11 +287,11 @@ def _sse(obj: dict) -> str:
 
 
 @app.post("/chat/stream")
-def chat_stream(req: ChatRequest):
-    """SSE 스트리밍 채팅.
+def chat_stream(req: ChatRequest, user: str = Depends(current_user)):
+    """SSE 스트리밍 채팅 (유저별 세션).
     이벤트: state(FSM) → delta(토큰)* → done(선택지+기억여부) → error?"""
     try:
-        character, history, intent_result, state, prompt, memories = _prepare_chat(req)
+        character, history, intent_result, state, prompt, memories = _prepare_chat(req, user)
     except HTTPException as e:
         def err():
             yield _sse({"type": "error", "detail": e.detail})
@@ -267,15 +325,15 @@ def chat_stream(req: ChatRequest):
         user_entry = req.action or req.message
         history.append({"role": "user", "content": user_entry})
         history.append({"role": "assistant", "content": reply})
-        memory_store.save_history(req.session_id, history)
+        memory_store.save_history(session_key(user, req.character_id), history)
         cards = narrative.build_choice_cards(intent_result, mood)
-        summarized = memory_store.maybe_summarize(req.session_id, state.turn, history)
+        summarized = memory_store.maybe_summarize(session_key(user, req.character_id), state.turn, history)
         yield _sse({
             "type": "done",
             "reply": reply,
             "choice_cards": cards,
             "memory_saved": summarized is not None,
-            "total_memories": memory_store.count_memories(req.session_id),
+            "total_memories": memory_store.count_memories(session_key(user, req.character_id)),
             "truncated": gemma_client.was_truncated(),
         })
 
@@ -288,13 +346,14 @@ def chat_stream(req: ChatRequest):
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest) -> ChatResponse:
+def chat(req: ChatRequest, user: str = Depends(current_user)) -> ChatResponse:
     character = builder.load_character(req.character_id)
     if character is None:
         raise HTTPException(status_code=404, detail=f"character not found: {req.character_id}")
 
-    history = memory_store.load_history(req.session_id) or _histories.setdefault(req.session_id, [])
-    _histories[req.session_id] = history
+    skey = session_key(user, req.character_id)
+    history = memory_store.load_history(skey) or _histories.setdefault(skey, [])
+    _histories[skey] = history
     # 첫 턴: 첫 메시지를 '개장 장면'으로 히스토리에 고정
     if not history and character.get("first_message"):
         history.append({"role": "assistant", "content": character["first_message"]})
@@ -304,12 +363,12 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     # 2) FSM 상태 갱신 — 반드시 생성 이전에 결정적으로 커밋
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
-    state = fsm.commit(req.session_id, intent_result.delta, decay=decay)
+    state = fsm.commit(skey, intent_result.delta, decay=decay)
 
     # 2.5) 장기기억 검색(RAG) — 생성 이전에 프롬프트에 주입
-    memories = memory_store.search_memories(req.session_id, req.effective_message())
+    memories = memory_store.search_memories(skey, req.effective_message())
 
-    meta = session_meta.init_if_absent(req.session_id, character.get("initial_setup", ""))
+    meta = session_meta.init_if_absent(skey, character.get("initial_setup", ""))
     # 3) 동적 프롬프트 주입 후 추론
     prompt = compile_prompt(
         character, state, history, req.message,
@@ -328,10 +387,10 @@ def chat(req: ChatRequest) -> ChatResponse:
 
     history.append({"role": "user", "content": req.action or req.message})
     history.append({"role": "assistant", "content": reply})
-    memory_store.save_history(req.session_id, history)
+    memory_store.save_history(skey, history)
 
     # 장기기억: 일정 턴마다 대화 요약 저장
-    memory_store.maybe_summarize(req.session_id, state.turn, history)
+    memory_store.maybe_summarize(skey, state.turn, history)
 
     return ChatResponse(
         reply=reply,
@@ -343,13 +402,14 @@ def chat(req: ChatRequest) -> ChatResponse:
 
 
 @app.get("/sessions/{session_id}/state")
-def session_state(session_id: str) -> dict:
-    if not fsm.exists(session_id):
+def session_state(session_id: str, user: str = Depends(current_user)) -> dict:
+    skey = session_key(user, session_id)
+    if not fsm.exists(skey):
         raise HTTPException(status_code=404, detail="session not found")
-    return fsm.get(session_id).to_dict()
+    return fsm.get(skey).to_dict()
 
 @app.get("/debug")
-def debug_bundle() -> dict:
+def debug_bundle(user: str = Depends(current_user)) -> dict:
     """배포 진단용: 서버리스 함수 내부에서 실제 파일들이 어디에 있는지 표시."""
     import sys
 

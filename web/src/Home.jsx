@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function Home({ characters, onPick, onCreate }) {
+export default function Home({ characters, onPick, onCreate, user, onLogout }) {
   const [genre, setGenre] = useState('전체')
   const safeList = Array.isArray(characters) ? characters : []
 
@@ -18,6 +18,10 @@ export default function Home({ characters, onPick, onCreate }) {
   return (
     <div className="home">
       <header className="hero">
+        <div className="user-chip">
+          <span>👤 <b>{user}</b>님</span>
+          <button onClick={onLogout}>로그아웃</button>
+        </div>
         <h1>iF<span>이프</span></h1>
         <p>차원의 틈 너머, 당신이 서사의 주체가 되는 곳.<br />
           캐릭터를 선택하고 이야기를 시작하세요.</p>
