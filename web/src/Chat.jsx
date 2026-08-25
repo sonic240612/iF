@@ -37,7 +37,7 @@ export default function Chat({ character, onExit }) {
   const [truncNote, setTruncNote] = useState(false)
   const [showPatch, setShowPatch] = useState(false)
   const [patchText, setPatchText] = useState('')
-  const [patchSavedAt, setPatchSavedAt] = useState<string | null>(null)
+  const [patchSavedAt, setPatchSavedAt] = useState(null)
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
 
