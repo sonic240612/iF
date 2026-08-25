@@ -124,7 +124,7 @@ python -m pytest tests/ -q
 ## 🛣️ 로드맵
 
 - [ ] Redis 세션 저장소 (멀티 인스턴스 대응)
-- [ ] 임베딩 기반 벡터 검색 (Milvus/Pinecone)
+- [x] 임베딩 기반 벡터 검색 (text-embedding-004 · Milvus/Pinecone 전환 예정)
 - [ ] React Native 모바일 앱
 
 ---
