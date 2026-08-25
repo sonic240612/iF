@@ -125,8 +125,6 @@ python -m pytest tests/ -q
 
 - [ ] Redis 세션 저장소 (멀티 인스턴스 대응)
 - [ ] 임베딩 기반 벡터 검색 (Milvus/Pinecone)
-- [ ] 크리에이터 수익 공유 정산 시스템
-- [ ] 하이브리드 과금 (Freemium + 구독)
 - [ ] React Native 모바일 앱
 
 ---
