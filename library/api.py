@@ -48,6 +48,25 @@ async def strip_api_prefix(request, call_next):
     return await call_next(request)
 
 
+
+import re as _re
+
+# 모델이 프롬프트의 메타 블록을 흉내내서 출력하는 것을 제거
+_META_LINE_RE = _re.compile(
+    r"^\[(?:현재 감정 상태|말투 지시|초기 설정|유저 패치|과거 기억|서사 진행 지시|"
+    r"유저가 선택한 행동|출력 규칙)\][^\n]*\n?",
+    _re.M,
+)
+
+
+def sanitize_reply(text: str) -> str:
+    """응답에서 메타 블록 라인 제거 + 과도한 개행 정리."""
+    if not text:
+        return text
+    cleaned = _META_LINE_RE.sub("", text)
+    cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
 # session_id -> [{"role", "content"}]
 _histories: dict[str, list[dict]] = {}
 
@@ -244,7 +263,7 @@ def chat_stream(req: ChatRequest):
         except Exception as e:
             yield _sse({"type": "error", "detail": str(e)})
             return
-        reply = "".join(full_text_parts).strip()
+        reply = sanitize_reply("".join(full_text_parts).strip())
         user_entry = req.action or req.message
         history.append({"role": "user", "content": user_entry})
         history.append({"role": "assistant", "content": reply})
@@ -300,7 +319,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         user_patch=meta.get("user_patch"),
     )
     try:
-        reply = gemma_client.generate(prompt, mood=state.mood())
+        reply = sanitize_reply(gemma_client.generate(prompt, mood=state.mood()))
     except gemma_client.ContextOverflowError as e:
         raise HTTPException(status_code=413, detail=str(e))
 

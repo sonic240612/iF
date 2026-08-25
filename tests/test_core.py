@@ -89,6 +89,14 @@ def test_compile_user_patch_always_injected():
     assert "유저 패치" in p and "묘사는 짧고 문학적으로" in p
 
 
+def test_sanitize_reply_strips_meta_blocks():
+    from library.api import sanitize_reply
+
+    dirty = "(서류를 내려놓으며)\n[현재 감정 상태] 호감도=80 집착도=5\n자, 앉으세요.\n\n\n[말투 지시] 따뜻하게"
+    clean = sanitize_reply(dirty)
+    assert "호감도" not in clean and "말투 지시" not in clean
+    assert "앉으세요" in clean and "자, 앉으세요." in clean
+
 def test_session_patch_endpoints():
     client = TestClient(app)
     sid = "patch_test_sess"
