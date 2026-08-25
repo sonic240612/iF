@@ -305,6 +305,28 @@ def debug_bundle() -> dict:
     }
 
 
+# ── /api 접두사 이중 라우트 (서버리스 플랫폼의 리라이트 경로 처리 차이 대응) ──
+# 미들웨어가 /api를 벗겨주지만, 일부 플랫폼은 원본 경로를 그대로 전달하므로
+# 양쪽 모두에서 라우트가 매칭되도록 /api/* 복제본을 정적 마운트보다 앞에 등록한다.
+from starlette.routing import Route as _StarletteRoute
+
+
+def _register_api_prefixed_duplicates() -> None:
+    extras = []
+    for route in app.router.routes:
+        if isinstance(route, _StarletteRoute) and not route.path.startswith("/api"):
+            extras.append(_StarletteRoute(
+                "/api" + route.path,
+                endpoint=route.endpoint,
+                methods=route.methods,
+                name=route.name + "_api_prefixed",
+                include_in_schema=False,
+            ))
+    app.router.routes.extend(extras)
+
+
+_register_api_prefixed_duplicates()
+
 # ── 정적 SPA 서빙 (배포: web/dist가 있으면 단일 서비스로 운영) ──
 _DIST = ROOT / "web" / "dist"
 if _DIST.exists():
