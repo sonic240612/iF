@@ -4,7 +4,8 @@ const GENRES = ['전체', '로맨스', 'RPG', '다크 로맨스', '무협']
 
 export default function Home({ characters, onPick, onCreate }) {
   const [genre, setGenre] = useState('전체')
-  const list = genre === '전체' ? characters : characters.filter(c => c.genre === genre)
+  const safeList = Array.isArray(characters) ? characters : []
+  const list = genre === '전체' ? safeList : safeList.filter(c => c.genre === genre)
 
   return (
     <div className="home">

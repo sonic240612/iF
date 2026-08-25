@@ -10,7 +10,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null)
 
   function refresh() {
-    fetch('/api/characters').then(r => r.json()).then(setCharacters).catch(() => {})
+    fetch('/api/characters')
+      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then(d => setCharacters(Array.isArray(d) ? d : []))
+      .catch(() => {})
   }
   useEffect(refresh, [])
 
@@ -20,6 +23,13 @@ export default function App() {
     setSelectedId(id)
     setView('detail')
     window.scrollTo(0, 0)
+  }
+
+  // 렌더 중 크래시로 화면이 통째로 사라지지 않도록 방어
+  if (typeof window !== 'undefined') {
+    window.addEventListener('error', (e) => {
+      console.error('[iF] 런타임 에러:', e.message)
+    })
   }
 
   if (view === 'chat' && selected) {
