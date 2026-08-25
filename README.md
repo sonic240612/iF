@@ -1,3 +1,13 @@
+---
+title: iF
+emoji: 🌌
+colorFrom: indigo
+colorTo: pink
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # iF (이프)
 
 > 차원의 틈을 넘어, 유저가 서사의 주체가 되는 고몰입 AI 캐릭터 채팅 & 인터랙티브 스토리텔링 플랫폼

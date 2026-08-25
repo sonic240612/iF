@@ -17,6 +17,10 @@ COPY configs/ configs/
 COPY characters/ characters/
 COPY --from=web-build /build/dist web/dist/
 
-ENV PORT=8000
-EXPOSE 8000
+# Hugging Face Spaces: non-root 유저(1000) 실행 필수 + 쓰기 가능한 데이터 디렉토리
+RUN mkdir -p /app/data && chown -R 1000:1000 /app
+USER 1000
+
+ENV PORT=7860
+EXPOSE 7860
 CMD ["sh", "-c", "uvicorn library.api:app --host 0.0.0.0 --port ${PORT}"]
