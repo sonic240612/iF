@@ -137,7 +137,7 @@ python -m pytest tests/ -q
 ├── configs/
 │   ├── base.toml                  # 모델/FSM 전역 설정
 │   └── schemas/character_card.json # 캐릭터 카드 JSON Schema
-├── characters/methods/            # 캐릭터 카드 (앨리스, 린, 설희, 연우)
+├── characters/methods/            # 기본 캐릭터 10종 + 커스텀 카드
 ├── library/
 │   ├── api.py                     # FastAPI 라우팅 (chat/stream, auth, sessions, patch)
 │   ├── auth/store.py              # 계정·토큰 저장소 (PBKDF2, Redis/메모리)
