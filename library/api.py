@@ -172,6 +172,7 @@ def chat_stream(req: ChatRequest):
     mood = state.mood()
 
     def event_stream():
+        gemma_client.reset_finish_state()
         # 1) 상태 먼저 전송 — UI가 감정 테마를 즉시 시프트
         yield _sse({
             "type": "state",
@@ -202,6 +203,7 @@ def chat_stream(req: ChatRequest):
             "choice_cards": cards,
             "memory_saved": summarized is not None,
             "total_memories": memory_store.count_memories(req.session_id),
+            "truncated": gemma_client.was_truncated(),
         })
 
     return StreamingResponse(

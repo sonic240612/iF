@@ -1,15 +1,17 @@
 """RAG 장기기억 저장소.
 
-MVP 구성:
+구성:
   - 저장: SQLite (data/memory.db) — 운영 시 Milvus/Pinecone으로 교체되는 지점
+  - 벡터: Google Embeddings(text-embedding-004)로 의미 기반 검색,
+          임베딩 실패 시 토큰 오버랩 스코어링으로 폴백
   - 요약: SUMMARY_INTERVAL턴마다 대화 윈도우를 Gemma로 요약해 기억으로 저장
-  - 검색: 토큰 오버랩 스코어링(경량 BM25 성격)으로 현재 발화와 관련된 기억 top-k 주입
 
 프롬프트 불변식: 검색된 기억은 반드시 '토큰 생성 이전'에 프롬프트에 주입된다.
 """
 from __future__ import annotations
 
 import json
+import math
 import re
 import sqlite3
 import time
@@ -31,9 +33,14 @@ def _conn() -> sqlite3.Connection:
                session_id TEXT NOT NULL,
                turn INTEGER NOT NULL,
                text TEXT NOT NULL,
+               embedding TEXT,
                created_at REAL NOT NULL
            )"""
     )
+    try:  # 기존 DB 마이그레이션
+        conn.execute("ALTER TABLE memories ADD COLUMN embedding TEXT")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -50,30 +57,81 @@ def _tokenize(text: str) -> set[str]:
     return {t for t in re.split(r"[\s,.?!~\"'()\[\]{}:;]+", text) if len(t) >= 2}
 
 
+def _cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
 def search_memories(session_id: str, query: str, k: int = TOP_K) -> list[str]:
-    """현재 발화와 관련度高은 과거 기억을 검색한다."""
+    """현재 발화와 관련度 높은 과거 기억을 검색한다.
+
+    1차: 임베딩 코사인 유사도 (의미 기반)
+    폴백: 토큰 오버랩 스코어링 (임베딩 불가 시)
+    """
     q_tokens = _tokenize(query)
-    if not q_tokens:
-        return []
+
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT text FROM memories WHERE session_id = ? ORDER BY id DESC LIMIT 200",
+            "SELECT text, embedding FROM memories WHERE session_id = ? ORDER BY id DESC LIMIT 200",
             (session_id,),
         ).fetchall()
-    scored: list[tuple[float, str]] = []
-    for (text,) in rows:
-        overlap = len(q_tokens & _tokenize(text))
-        if overlap > 0:
-            scored.append((overlap, text))
+
+    if not rows:
+        return []
+
+    # 1) 벡터 검색 시도
+    q_emb = None
+    try:
+        from library.inference import gemma_client
+        if any(r[1] for r in rows):  # 저장된 벡터가 하나라도 있을 때만 호출
+            q_emb = gemma_client.embed(query)
+    except Exception:
+        q_emb = None
+
+    if q_emb:
+        scored = []
+        for text, emb_json in rows:
+            if not emb_json:
+                continue
+            sim = _cosine(q_emb, json.loads(emb_json))
+            if sim > 0.5:
+                scored.append((sim, text))
+        if scored:
+            scored.sort(key=lambda t: -t[0])
+            return [text for _, text in scored[:k]]
+
+    # 2) 폴백: 토큰 오버랩 + 부분 문자열 매칭 (한국어 조사 변화 대응)
+    if not q_tokens:
+        return []
+    scored = []
+    for text, _emb in rows:
+        score = len(q_tokens & _tokenize(text))
+        score += sum(1 for t in q_tokens if t in text and t not in _tokenize(text))
+        if score > 0:
+            scored.append((score, text))
     scored.sort(key=lambda t: -t[0])
     return [text for _, text in scored[:k]]
 
 
 def save_memory(session_id: str, turn: int, text: str) -> None:
+    emb_json = None
+    try:
+        from library.inference import gemma_client
+        emb = gemma_client.embed(text)
+        if emb:
+            emb_json = json.dumps(emb)
+    except Exception:
+        pass
     with _conn() as conn:
         conn.execute(
-            "INSERT INTO memories (session_id, turn, text, created_at) VALUES (?, ?, ?, ?)",
-            (session_id, turn, text.strip(), time.time()),
+            "INSERT INTO memories (session_id, turn, text, embedding, created_at) VALUES (?, ?, ?, ?, ?)",
+            (session_id, turn, text.strip(), emb_json, time.time()),
         )
 
 
@@ -139,4 +197,7 @@ def delete_history(session_id: str) -> None:
     """대화 초기화: 히스토리 + 장기기억 모두 삭제."""
     with _conn() as conn:
         conn.execute("DELETE FROM memories WHERE session_id=?", (session_id,))
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS histories (session_id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at REAL NOT NULL)"
+        )
         conn.execute("DELETE FROM histories WHERE session_id=?", (session_id,))

@@ -70,6 +70,17 @@ class AllKeysFailedError(RuntimeError):
 
 _THOUGHT_RE = re.compile(r"<thought>.*?</thought>", re.DOTALL)
 
+# 마지막 생성의 finish_reason (api.py가 잘림 여부 확인용)
+_finish_reason = {"value": None}
+
+
+def was_truncated() -> bool:
+    return _finish_reason["value"] == "length"
+
+
+def reset_finish_state() -> None:
+    _finish_reason["value"] = None
+
 
 def strip_thought(text: str) -> str:
     """Gemma 4의 <thought>…</thought> 추론 블록 제거."""
@@ -86,6 +97,11 @@ def _call_endpoint(base_url: str, model: str, api_key: str, payload: dict) -> st
     with urllib.request.urlopen(req, timeout=300) as resp:
         data = json.load(resp)
     content = strip_thought(data["choices"][0]["message"]["content"])
+    if data["choices"][0].get("finish_reason") == "length":
+        print("[gemma_client] warning: 응답이 max_tokens로 잘렸습니다 (finish_reason=length)")
+        _finish_reason["value"] = "length"
+    else:
+        _finish_reason["value"] = data["choices"][0].get("finish_reason")
     if not content:
         # 빈 응답도 재시도 가능한 장애로 간주
         raise urllib.error.HTTPError(req.full_url, 500, "empty response", hdrs=None, fp=None)
@@ -183,7 +199,13 @@ def generate_remote_stream(prompt: str):
                         return
                     try:
                         chunk = json.loads(data_str)
-                        delta = chunk["choices"][0]["delta"].get("content")
+                        choice = chunk["choices"][0]
+                        fr = choice.get("finish_reason")
+                        if fr:
+                            _finish_reason["value"] = fr
+                            if fr == "length":
+                                print("[gemma_client] warning: 스트림 응답 잘림 (finish_reason=length)")
+                        delta = choice["delta"].get("content")
                         if delta:
                             yield strip_thought_delta(delta)
                     except (KeyError, IndexError, json.JSONDecodeError):
@@ -236,6 +258,39 @@ _IN_THOUGHT = False
 def reset_thought_state() -> None:
     global _IN_THOUGHT
     _IN_THOUGHT = False
+
+
+# ── 임베딩 (RAG 벡터 검색용) ──
+
+EMBED_MODEL = "text-embedding-004"
+
+
+def embed(text: str) -> list[float] | None:
+    """텍스트 임베딩 벡터 반환. 실패 시 None (호출부가 토큰 오버랩 폴백 사용)."""
+    if not text.strip() or not get_keys():
+        return None
+    base_url = _CONFIG["model"].get(
+        "base_url", "https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+    payload = {"model": EMBED_MODEL, "input": text}
+    for _ in range(max(len(get_keys()), 2)):
+        key = pool.next_key()
+        try:
+            req = urllib.request.Request(
+                base_url.rstrip("/") + "/embeddings",
+                data=json.dumps(payload).encode(),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.load(resp)
+            return data["data"][0]["embedding"]
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                pool.mark_rate_limited(key)
+            continue
+        except Exception:
+            continue
+    return None
 
 
 def generate(prompt: str, mood: str = "neutral", max_tokens: int = 1024) -> str:

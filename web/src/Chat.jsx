@@ -34,6 +34,7 @@ export default function Chat({ character, onExit }) {
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState('')
   const [memoryNote, setMemoryNote] = useState('')
+  const [truncNote, setTruncNote] = useState(false)
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
 
@@ -124,6 +125,10 @@ export default function Chat({ character, onExit }) {
               setMemoryNote(`🧠 새로운 기억 저장됨 (총 ${evt.total_memories}개)`)
               setTimeout(() => setMemoryNote(''), 4000)
             }
+            if (evt.truncated) {
+              setTruncNote(true)
+              setTimeout(() => setTruncNote(false), 6000)
+            }
           } else if (evt.type === 'error') {
             throw new Error(evt.detail || 'stream error')
           }
@@ -181,6 +186,7 @@ export default function Chat({ character, onExit }) {
       <main className="chat-scroll">
         <div className="chat-inner">
           {memoryNote && <div className="memory-note">{memoryNote}</div>}
+          {truncNote && <div className="memory-note trunc">⚠️ 응답이 길어 일부 잘렸습니다</div>}
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
           ))}
