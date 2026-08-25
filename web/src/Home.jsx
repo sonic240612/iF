@@ -52,7 +52,7 @@ export default function Home({ characters, onPick, onCreate }) {
               <span className="pill genre">{c.genre}</span>
             </div>
             <strong className="card-name">{c.name}</strong>
-            <p className="card-intro">{(c.intro || c.system_prompt).slice(0, 72)}…</p>
+            <p className="card-intro">{(c.intro || '소개글이 없습니다.').slice(0, 72)}…</p>
             <div className="card-tags">
               {c.tags.map(t => <span key={t} className="tag">#{t}</span>)}
             </div>

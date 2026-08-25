@@ -18,7 +18,7 @@ export default function CharacterDetail({ character, onBack, onStart }) {
 
       <section className="detail-section">
         <h2>📖 줄거리</h2>
-        <p className="intro-text">{character.intro || character.system_prompt}</p>
+        <p className="intro-text">{character.intro || '등록된 소개글이 없습니다.'}</p>
       </section>
 
       {character.worldview && (

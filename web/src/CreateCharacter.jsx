@@ -29,10 +29,11 @@ export default function CreateCharacter({ onCreated, onBack }) {
   const [greetingMood, setGreetingMood] = useState('neutral')
   const [gradient, setGradient] = useState(GRADIENTS[0])
   const [initialSetup, setInitialSetup] = useState('')
+  const [worldviewText, setWorldviewText] = useState('')
 
   async function createManual() {
-    if (name.trim().length < 1 || systemPrompt.trim().length < 10 || firstMessage.trim().length < 1) {
-      setError('이름 / 시스템 프롬프트(10자+) / 첫 메시지는 필수입니다.')
+    if (name.trim().length < 1 || systemPrompt.trim().length < 10 || firstMessage.trim().length < 1 || intro.trim().length < 5) {
+      setError('이름 / 시스템 프롬프트(10자+) / 첫 메시지 / 줄거리는 필수입니다.')
       return
     }
     setBusy(true); setError('')
@@ -49,7 +50,8 @@ export default function CreateCharacter({ onCreated, onBack }) {
           genre: genre.trim() || '일상',
           greeting_mood: greetingMood,
           gradient,
-          intro,
+          intro: intro.trim(),
+          worldview: worldviewText.trim(),
           initial_setup: initialSetup,
           emoji: '🎨',
         }),
@@ -112,6 +114,12 @@ export default function CreateCharacter({ onCreated, onBack }) {
           <label>첫 메시지 *
             <textarea rows={3} value={firstMessage} onChange={e => setFirstMessage(e.target.value)}
               placeholder="야! 드디어 왔네. 뭐 하면서 이렇게 늦었어?" /></label>
+          <label>줄거리 * (카드 상세에 표시됩니다 — 시스템 프롬프트는 공개되지 않아요)
+            <textarea rows={4} value={intro} onChange={e => setIntro(e.target.value)}
+              placeholder="캐릭터의 성격, 배경, 유저와의 관계 등을 소개하듯 적어주세요." /></label>
+          <label>세계관 (선택)
+            <textarea rows={3} value={worldviewText} onChange={e => setWorldviewText(e.target.value)}
+              placeholder="이야기가 펼쳐지는 세계·배경을 적어주세요." /></label>
           <div className="row">
             <label>장르<input value={genre} onChange={e => setGenre(e.target.value)} placeholder="로맨스" /></label>
             <label>태그 (쉼표 구분)<input value={tags} onChange={e => setTags(e.target.value)} placeholder="츤데레, 연애, 학교" /></label>
