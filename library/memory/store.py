@@ -1,10 +1,9 @@
 """RAG 장기기억 저장소.
 
 구성:
-  - 저장: SQLite (data/memory.db) — 운영 시 Milvus/Pinecone으로 교체되는 지점
-  - 벡터: Google Embeddings(text-embedding-004)로 의미 기반 검색,
-          임베딩 실패 시 토큰 오버랩 스코어링으로 폴백
-  - 요약: SUMMARY_INTERVAL턴마다 대화 윈도우를 Gemma로 요약해 기억으로 저장
+  - 로컬: SQLite (data/memory.db)
+  - 서버리스/Vercel(REDIS_URL + VERCEL=1): Redis 전용 모드 (읽기 전용 FS 회피)
+  - 일반 서버 + REDIS_URL: Redis 우선 + SQLite 백업 이중 저장
 
 프롬프트 불변식: 검색된 기억은 반드시 '토큰 생성 이전'에 프롬프트에 주입된다.
 """
@@ -12,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sqlite3
 import time
@@ -22,6 +22,34 @@ DB_PATH = ROOT / "data" / "memory.db"
 
 SUMMARY_INTERVAL = 10   # N 어시스턴트 턴마다 요약 기억 생성
 TOP_K = 3               # 매 턴 주입할 기억 개수
+MEM_KEY_PREFIX = "if:mem:"
+HIST_KEY_PREFIX = "if:hist:"
+MAX_MEMORIES = 200      # 세션당 유지할 기억 상한
+
+_rc = None
+
+
+def _redis():
+    """REDIS_URL이 설정된 경우에만 Redis 클라이언트 반환, 아니면 None."""
+    global _rc
+    url = os.environ.get("REDIS_URL")
+    if not url:
+        return None
+    if _rc is None:
+        try:
+            import redis
+            _rc = redis.Redis.from_url(url, decode_responses=True, socket_timeout=3)
+            _rc.ping()
+            print("[memory] Redis 연결됨 — 기억/히스토리 영속화 활성화")
+        except Exception as e:
+            print(f"[memory] Redis 연결 실패, 로컬 스토어 폴백: {e}")
+            return None
+    return _rc
+
+
+def _sqlite_ok() -> bool:
+    """서버리스(읽기 전용 FS)에서는 SQLite를 사용하지 않는다."""
+    return not (_rc or os.environ.get("VERCEL") == "1")
 
 
 def _conn() -> sqlite3.Connection:
@@ -74,16 +102,25 @@ def search_memories(session_id: str, query: str, k: int = TOP_K) -> list[str]:
     1차: 임베딩 코사인 유사도 (의미 기반)
     폴백: 토큰 오버랩 스코어링 (임베딩 불가 시)
     """
-    q_tokens = _tokenize(query)
-
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT text, embedding FROM memories WHERE session_id = ? ORDER BY id DESC LIMIT 200",
-            (session_id,),
-        ).fetchall()
+    rows: list[tuple[str, str | None]] = []  # (text, embedding_json)
+    r = _redis()
+    if r:
+        try:
+            entries = r.lrange(MEM_KEY_PREFIX + session_id, -MAX_MEMORIES, -1)
+            rows = [(e.get("text"), e.get("embedding")) for e in map(json.loads, entries)]
+        except Exception as e:
+            print(f"[memory] Redis 조회 실패: {e}")
+    if not rows and _sqlite_ok():
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT text, embedding FROM memories WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+                (session_id, MAX_MEMORIES),
+            ).fetchall()
 
     if not rows:
         return []
+
+    q_tokens = _tokenize(query)
 
     # 1) 벡터 검색 시도
     q_emb = None
@@ -128,11 +165,26 @@ def save_memory(session_id: str, turn: int, text: str) -> None:
             emb_json = json.dumps(emb)
     except Exception:
         pass
-    with _conn() as conn:
-        conn.execute(
-            "INSERT INTO memories (session_id, turn, text, embedding, created_at) VALUES (?, ?, ?, ?, ?)",
-            (session_id, turn, text.strip(), emb_json, time.time()),
-        )
+
+    if _redis():
+        try:
+            entry = json.dumps({"turn": turn, "text": text.strip(), "embedding": emb_json}, ensure_ascii=False)
+            r = _redis()
+            pipe = r.pipeline()
+            pipe.rpush(MEM_KEY_PREFIX + session_id, entry)
+            pipe.ltrim(MEM_KEY_PREFIX + session_id, -MAX_MEMORIES, -1)
+            pipe.expire(MEM_KEY_PREFIX + session_id, 60 * 60 * 24 * 30)  # 30일
+            pipe.execute()
+            return
+        except Exception as e:
+            print(f"[memory] Redis 기억 저장 실패: {e}")
+
+    if _sqlite_ok():
+        with _conn() as conn:
+            conn.execute(
+                "INSERT INTO memories (session_id, turn, text, embedding, created_at) VALUES (?, ?, ?, ?, ?)",
+                (session_id, turn, text.strip(), emb_json, time.time()),
+            )
 
 
 def summarize_and_store(session_id: str, turn: int, history: list[dict]) -> str | None:
@@ -162,6 +214,14 @@ def maybe_summarize(session_id: str, turn: int, history: list[dict]) -> bool:
 
 
 def count_memories(session_id: str | None = None) -> int:
+    r = _redis()
+    if r and session_id:
+        try:
+            return int(r.llen(MEM_KEY_PREFIX + session_id) or 0)
+        except Exception:
+            pass
+    if not _sqlite_ok():
+        return 0
     with _conn() as conn:
         if session_id:
             row = conn.execute("SELECT COUNT(*) FROM memories WHERE session_id=?", (session_id,)).fetchone()
@@ -173,6 +233,16 @@ def count_memories(session_id: str | None = None) -> int:
 # ── 대화 히스토리 영속화 ──
 
 def load_history(session_id: str) -> list[dict]:
+    r = _redis()
+    if r:
+        try:
+            raw = r.get(HIST_KEY_PREFIX + session_id)
+            if raw is not None:
+                return json.loads(raw)
+        except Exception as e:
+            print(f"[memory] Redis 히스토리 조회 실패: {e}")
+    if not _sqlite_ok():
+        return []
     with _conn() as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS histories (session_id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at REAL NOT NULL)"
@@ -182,6 +252,13 @@ def load_history(session_id: str) -> list[dict]:
 
 
 def save_history(session_id: str, history: list[dict]) -> None:
+    if _redis():
+        try:
+            _redis().set(HIST_KEY_PREFIX + session_id, json.dumps(history, ensure_ascii=False))
+        except Exception as e:
+            print(f"[memory] Redis 히스토리 저장 실패: {e}")
+    if not _sqlite_ok():
+        return
     with _conn() as conn:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS histories (session_id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at REAL NOT NULL)"
@@ -195,6 +272,13 @@ def save_history(session_id: str, history: list[dict]) -> None:
 
 def delete_history(session_id: str) -> None:
     """대화 초기화: 히스토리 + 장기기억 모두 삭제."""
+    if _redis():
+        try:
+            _redis().delete(MEM_KEY_PREFIX + session_id, HIST_KEY_PREFIX + session_id)
+        except Exception as e:
+            print(f"[memory] Redis 삭제 실패: {e}")
+    if not _sqlite_ok():
+        return
     with _conn() as conn:
         conn.execute("DELETE FROM memories WHERE session_id=?", (session_id,))
         conn.execute(

@@ -35,6 +35,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def strip_api_prefix(request, call_next):
+    """프론트엔드는 /api/... 로 호출하고 실제 라우트는 /... 이다.
+    프로덕션 단일 호스트(Vercel/Render)에서 접두사를 벗겨 라우팅한다."""
+    path = request.scope.get("path", "")
+    if path == "/api":
+        request.scope["path"] = "/"
+    elif path.startswith("/api/"):
+        request.scope["path"] = path[len("/api"):]
+    return await call_next(request)
+
+
 # session_id -> [{"role", "content"}]
 _histories: dict[str, list[dict]] = {}
 
