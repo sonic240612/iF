@@ -36,6 +36,7 @@ export default function Chat({ character, onExit }) {
   const [memoryNote, setMemoryNote] = useState('')
   const [truncNote, setTruncNote] = useState(false)
   const [showPatch, setShowPatch] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
   const [patchText, setPatchText] = useState('')
   const [patchSavedAt, setPatchSavedAt] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -85,12 +86,13 @@ export default function Chat({ character, onExit }) {
   }
 
   async function resetChat() {
-    if (!confirm('이 캐릭터와의 대화를 모두 초기화할까요? 기억도 함께 사라집니다.')) return
     await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }).catch(() => {})
     setMessages([{ role: 'assistant', content: character.first_message }])
     setState(null)
     setCards([])
     setMemoryNote('')
+    setPatchText('')
+    setConfirmReset(false)
   }
 
   // SSE 스트리밍으로 응답을 실시간 수신. action이 있으면 '선택한 행동'으로 전송
@@ -190,7 +192,7 @@ export default function Chat({ character, onExit }) {
         <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
           📝 <span className="patch-label">유저 패치</span>
         </button>
-        <button className="reset-btn" title="대화 초기화" onClick={resetChat}>🗑</button>
+        <button className="reset-btn" title="대화 초기화" onClick={() => setConfirmReset(true)}>🗑</button>
         {state?.turn > 0 && (
           <div className="state-chips">
             {STATE_LABELS.map(([key, label]) => (
@@ -244,6 +246,22 @@ export default function Chat({ character, onExit }) {
           <div className="patch-actions">
             <small>{patchText.length}/1000{patchSavedAt ? ` · 저장됨 ${patchSavedAt}` : ''}</small>
             <button onClick={savePatch}>저장</button>
+          </div>
+        </div>
+      )}
+
+      {confirmReset && (
+        <div className="modal-overlay" onClick={() => setConfirmReset(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>⚠️ 정말 초기화 하시겠습니까?</h3>
+            <p>
+              {character.name}과(와)의 모든 대화, 감정 상태, 장기기억이 삭제되며<br />
+              되돌릴 수 없습니다.
+            </p>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setConfirmReset(false)}>취소</button>
+              <button className="btn-danger" onClick={resetChat}>초기화</button>
+            </div>
           </div>
         </div>
       )}
