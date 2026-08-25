@@ -3,8 +3,8 @@ title: iF
 emoji: 🌌
 colorFrom: indigo
 colorTo: pink
-sdk: docker
-app_port: 8000
+sdk: gradio
+app_file: app.py
 pinned: false
 ---
 
