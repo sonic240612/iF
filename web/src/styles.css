@@ -177,7 +177,7 @@ button { font-family: inherit; }
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  height: calc(100dvh - var(--kb-adjust, 0px));
   background: radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--accent) 14%, var(--bg)), var(--bg) 60%);
   transition: background .8s ease;
 }
@@ -303,7 +303,7 @@ button { font-family: inherit; }
   border: 1px solid #2a3040;
   background: var(--surface);
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px; /* 16px 미만이면 iOS가 강제 확대함 */
   outline: none;
   transition: border-color .15s;
 }

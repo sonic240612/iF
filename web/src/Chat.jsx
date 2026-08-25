@@ -116,7 +116,30 @@ export default function Chat({ character, onExit }) {
   }
 
   // SSE 스트리밍으로 응답을 실시간 수신. action이 있으면 '선택한 행동'으로 전송
+  // ── 모바일(iOS Safari) 키보드 대응 ──
+  // 자판이 올라오면 시각적 뷰포트가 줄어든다. 그 높이에 맞춰 채팅 화면을 재조정하고
+  // 최신 메시지가 입력창 바로 위에 오도록 스크롤을 유지한다.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    function handleViewport() {
+      const shrink = Math.max(0, window.innerHeight - vv.height)
+      document.documentElement.style.setProperty('--kb-adjust', `${shrink}px`)
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ block: 'end' })
+      })
+    }
+    vv.addEventListener('resize', handleViewport)
+    vv.addEventListener('scroll', handleViewport)
+    window.addEventListener('focusin', () => setTimeout(handleViewport, 350))
+    return () => {
+      vv.removeEventListener('resize', handleViewport)
+      vv.removeEventListener('scroll', handleViewport)
+    }
+  }, [])
+
   async function send(textOverride, actionOverride) {
+
     const isAction = !!actionOverride
     const text = ((actionOverride ?? textOverride) ?? input).trim()
     if (!text || busy || !character.id) return
@@ -298,6 +321,10 @@ export default function Chat({ character, onExit }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
+          onFocus={() => setTimeout(() => {
+            // 모바일: 자판이 올라온 뒤 최신 대화가 보이도록 스크롤
+            bottomRef.current?.scrollIntoView({ block: 'end' })
+          }, 350)}
           placeholder={`${character.name}에게 말 걸기…`}
           disabled={busy}
         />
