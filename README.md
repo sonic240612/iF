@@ -88,7 +88,7 @@ python -m pytest tests/ -q
 
 ```
 ├── configs/
-│   ├── base.toml                  # 모델/FSM/과금 전역 설정
+│   ├── base.toml                  # 모델/FSM 전역 설정
 │   └── schemas/character_card.json # 캐릭터 카드 JSON Schema
 ├── characters/methods/            # 캐릭터 카드 (앨리스, 린, 설희, 연우)
 ├── library/
