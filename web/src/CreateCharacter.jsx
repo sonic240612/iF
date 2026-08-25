@@ -28,6 +28,7 @@ export default function CreateCharacter({ onCreated, onBack }) {
   const [intro, setIntro] = useState('')
   const [greetingMood, setGreetingMood] = useState('neutral')
   const [gradient, setGradient] = useState(GRADIENTS[0])
+  const [initialSetup, setInitialSetup] = useState('')
 
   async function createManual() {
     if (name.trim().length < 1 || systemPrompt.trim().length < 10 || firstMessage.trim().length < 1) {
@@ -49,6 +50,7 @@ export default function CreateCharacter({ onCreated, onBack }) {
           greeting_mood: greetingMood,
           gradient,
           intro,
+          initial_setup: initialSetup,
           emoji: '🎨',
         }),
       })
@@ -114,6 +116,11 @@ export default function CreateCharacter({ onCreated, onBack }) {
             <label>장르<input value={genre} onChange={e => setGenre(e.target.value)} placeholder="로맨스" /></label>
             <label>태그 (쉼표 구분)<input value={tags} onChange={e => setTags(e.target.value)} placeholder="츤데레, 연애, 학교" /></label>
           </div>
+          <label>초기 설정 (선택 · 최대 1,000자) — 도입부 휘발성 지시
+            <textarea rows={4} maxLength={1000} value={initialSetup} onChange={e => setInitialSetup(e.target.value)}
+              placeholder="세션 시작 시에만 읽히는 설정입니다. 약 20턴이 지나면 자연스럽게 잊혀져 유저의 자유도를 해치지 않으면서 도입부 분위기를 제어할 수 있어요." />
+            <small>{initialSetup.length}/1000</small>
+          </label>
           <label>첫인상 톤
             <select value={greetingMood} onChange={e => setGreetingMood(e.target.value)}>
               {MOODS.map(m => <option key={m} value={m}>{MOOD_NAMES[m]}</option>)}

@@ -1,3 +1,4 @@
+import random
 import sys
 from pathlib import Path
 
@@ -5,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
+from fastapi.testclient import TestClient
+
+from library.api import app
 from library.fsm.engine import EmotionState
 from library.fsm.classifier import classify
 from library.creators.assist import _extract_json, AssistError
@@ -59,7 +63,60 @@ def test_classifier_neutral_accumulates_obsession():
     assert "obsession" in r.delta
 
 
-# ── AI 어시스트 JSON 추출 ──
+# ── 초기 설정 / 유저 패치 ──
+
+def test_compile_initial_setup_fades_after_20_turns():
+    from library.inference.prompt_compiler import compile_prompt
+    from library.fsm.engine import EmotionState
+
+    char = {"system_prompt": "기본 설정"}
+    early = EmotionState(turn=5)
+    p1 = compile_prompt(char, early, [], "안녕", initial_setup="도입부에서 비가 온다")
+    assert "도입부에서 비가 온다" in p1
+
+    late = EmotionState(turn=25)
+    p2 = compile_prompt(char, late, [], "안녕", initial_setup="도입부에서 비가 온다")
+    assert "초기 설정" not in p2  # 20턴 이후 소멸
+
+
+def test_compile_user_patch_always_injected():
+    from library.inference.prompt_compiler import compile_prompt
+    from library.fsm.engine import EmotionState
+
+    char = {"system_prompt": "기본 설정"}
+    s = EmotionState(turn=100)
+    p = compile_prompt(char, s, [], "안녕", user_patch="묘사는 짧고 문학적으로")
+    assert "유저 패치" in p and "묘사는 짧고 문학적으로" in p
+
+
+def test_session_patch_endpoints():
+    client = TestClient(app)
+    sid = "patch_test_sess"
+    # 초기값은 빈 문자열
+    assert client.get(f"/api/sessions/{sid}/user-patch").json() == {"patch": ""}
+    # 저장
+    r = client.put(f"/api/sessions/{sid}/user-patch", json={"patch": "전투는 박진감 있게"})
+    assert r.json()["status"] == "ok"
+    assert client.get(f"/api/sessions/{sid}/user-patch").json()["patch"] == "전투는 박진감 있게"
+    # 리셋 시 삭제됨
+    client.delete(f"/sessions/{sid}")
+    assert client.get(f"/api/sessions/{sid}/user-patch").json()["patch"] == ""
+
+
+def test_character_card_with_initial_setup():
+    client = TestClient(app)
+    card = {
+        "id": f"char_meta_{random.randint(1000,9999)}",
+        "name": "메타테스트",
+        "system_prompt": "당신은 테스트용 캐릭터이다.",
+        "first_message": "반가워",
+        "tags": ["테스트"],
+        "initial_setup": "첫 만남은 비 오는 정류장에서",
+    }
+    r = client.post("/characters", json=card)
+    assert r.status_code == 200
+    detail = client.get(f"/characters/{card['id']}").json()
+    assert detail["initial_setup"] == "첫 만남은 비 오는 정류장에서"
 
 def test_extract_json_plain():
     data = _extract_json('{"first_message": "안녕", "tags": ["a"]}')

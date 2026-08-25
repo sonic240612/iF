@@ -19,6 +19,11 @@
     "gradient": {"type": "string"},
     "intro": {"type": "string", "maxLength": 2000},
     "worldview": {"type": "string", "maxLength": 2000},
+    "initial_setup": {
+      "type": "string",
+      "maxLength": 1000,
+      "description": "세션 시작 시에만 읽히는 휘발성 도입부 설정 (약 20턴 후 자연 소멸)"
+    },
     "example_dialogs": {
       "type": "array",
       "items": {

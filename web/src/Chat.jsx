@@ -35,6 +35,9 @@ export default function Chat({ character, onExit }) {
   const [typing, setTyping] = useState('')
   const [memoryNote, setMemoryNote] = useState('')
   const [truncNote, setTruncNote] = useState(false)
+  const [showPatch, setShowPatch] = useState(false)
+  const [patchText, setPatchText] = useState('')
+  const [patchSavedAt, setPatchSavedAt] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
 
@@ -54,6 +57,7 @@ export default function Chat({ character, onExit }) {
           setMessages(data.messages)
           if (data.state) setState({ ...data.state, mood: data.state.mood?.() || inferMood(data.state) })
         }
+        if (data.user_patch) setPatchText(data.user_patch)
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,6 +70,18 @@ export default function Chat({ character, onExit }) {
     if (s.affection >= 45) return 'warm'
     if (s.affection >= 25) return 'tsundere'
     return 'cold'
+  }
+
+  async function savePatch() {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/user-patch`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patch: patchText }),
+      })
+      if (!res.ok) throw new Error()
+      setPatchSavedAt(new Date().toLocaleTimeString())
+    } catch { setPatchSavedAt(null) }
   }
 
   async function resetChat() {
@@ -171,6 +187,7 @@ export default function Chat({ character, onExit }) {
             ● {theme.name}{state?.turn > 0 ? ` · ${state.turn}턴` : ''}
           </span>
         </div>
+        <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="유저 패치" onClick={() => setShowPatch(v => !v)}>📝</button>
         <button className="reset-btn" title="대화 초기화" onClick={resetChat}>🗑</button>
         {state?.turn > 0 && (
           <div className="state-chips">
@@ -206,6 +223,26 @@ export default function Chat({ character, onExit }) {
           {cards.map((c, i) => (
             <button key={i} onClick={() => chooseCard(c)}>{c.text}</button>
           ))}
+        </div>
+      )}
+
+      {showPatch && (
+        <div className="patch-panel">
+          <div className="patch-head">
+            <strong>📝 유저 패치</strong>
+            <span>AI가 항상 기억할 정보 · 묘사·전개 방식 지정 (최대 1,000자)</span>
+          </div>
+          <textarea
+            maxLength={1000}
+            rows={4}
+            value={patchText}
+            onChange={e => setPatchText(e.target.value)}
+            placeholder={"예: 진행된 서사 요약, 캐릭터 감정선, '묘사는 짧고 문학적으로', '전투 장면은 박진감 있게' 등"}
+          />
+          <div className="patch-actions">
+            <small>{patchText.length}/1000{patchSavedAt ? ` · 저장됨 ${patchSavedAt}` : ''}</small>
+            <button onClick={savePatch}>저장</button>
+          </div>
         </div>
       )}
 

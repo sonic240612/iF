@@ -23,6 +23,9 @@ MAX_SYSTEM_CHARS = int(
     _CFG.get("model", {}).get("system_prompt_max_chars", DEFAULT_MAX_SYSTEM_CHARS)
 )
 
+# 초기 설정: 세션 시작 후 이 턴 수가 지나면 프롬프트에서 자연 소멸
+INITIAL_SETUP_TURNS = 20
+
 
 def fit_to_budget(text: str, max_chars: int | None = None) -> str:
     """초과분을 앞/뒤를 살리고 중간을 요약 마커로 대체하는 방식으로 압축."""
@@ -58,6 +61,8 @@ def compile_prompt(
     user_message: str,
     long_term_memories: list[str] | None = None,
     user_action: str | None = None,
+    initial_setup: str | None = None,
+    user_patch: str | None = None,
 ) -> str:
     mood = state.mood()
     system_prompt = fit_to_budget(character.get("system_prompt", ""))
@@ -67,6 +72,14 @@ def compile_prompt(
         f"혐오={state.enmity:.0f} 질투={state.jealousy:.0f}",
         f"[말투 지시] {_MOOD_DIRECTIVES[mood]}",
     ]
+    # 초기 설정: 도입부(~20턴)에만 유효한 휘발성 지시. 이후 유저의 선택이 우선.
+    if initial_setup and state.turn <= INITIAL_SETUP_TURNS:
+        lines.append("[초기 설정 — 도입부 지침, 서사가 진행될수록 유저의 선택이 우선한다]")
+        lines.append(initial_setup.strip())
+    # 유저 패치: 상시 반영되는 영구 지시
+    if user_patch:
+        lines.append("[유저 패치 — 매 응답에 일관되게 적용할 것]")
+        lines.append(user_patch.strip())
     if long_term_memories:
         lines.append("[과거 기억 — 필요하면 자연스럽게 언급하라]")
         for mem in long_term_memories:

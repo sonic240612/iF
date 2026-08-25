@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from library.creators import assist as creator_assist
 from library.creators import builder
 from library.fsm import classifier
+from library.fsm import session_meta
 from library.fsm.engine import engine as fsm
 from library.inference import gemma_client, narrative
 from library.inference.prompt_compiler import compile_prompt
@@ -81,6 +82,7 @@ class CharacterCardRequest(BaseModel):
     gradient: str = "linear-gradient(135deg, #7aa2f7, #b060ff)"
     intro: str = ""
     worldview: str = ""
+    initial_setup: str = Field(default="", max_length=1000)
     example_dialogs: list[dict] = []
 
 
@@ -135,15 +137,35 @@ def get_history(session_id: str) -> dict:
     """재접속 시 이전 대화 복원용."""
     history = memory_store.load_history(session_id)
     state = fsm.get(session_id) if fsm.exists(session_id) else None
-    return {"messages": history, "state": state.to_dict() if state else None}
+    return {
+        "messages": history,
+        "state": state.to_dict() if state else None,
+        "user_patch": session_meta.get_meta(session_id).get("user_patch", ""),
+    }
+
+
+class UserPatchRequest(BaseModel):
+    patch: str = Field(default="", max_length=1000)
+
+
+@app.get("/sessions/{session_id}/user-patch")
+def get_user_patch(session_id: str) -> dict:
+    return {"patch": session_meta.get_meta(session_id).get("user_patch", "")}
+
+
+@app.put("/sessions/{session_id}/user-patch")
+def set_user_patch(session_id: str, req: UserPatchRequest) -> dict:
+    session_meta.set_user_patch(session_id, req.patch)
+    return {"status": "ok", "patch": (req.patch or "").strip()[:1000]}
 
 
 @app.delete("/sessions/{session_id}")
 def reset_session(session_id: str) -> dict:
-    """대화 초기화: 히스토리 + FSM 상태 + 장기기억 삭제."""
+    """대화 초기화: 히스토리 + FSM 상태 + 장기기억 + 세션 메타 삭제."""
     _histories.pop(session_id, None)
     fsm.pop(session_id)
     memory_store.delete_history(session_id)
+    session_meta.delete(session_id)
     return {"status": "reset"}
 
 
@@ -159,10 +181,14 @@ def _prepare_chat(req: ChatRequest):
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
     state = fsm.commit(req.session_id, intent_result.delta, decay=decay)
     memories = memory_store.search_memories(req.session_id, req.effective_message())
+    # 세션 시작 시 초기 설정 스냅샷 (이미 있으면 기존 값 유지)
+    meta = session_meta.init_if_absent(req.session_id, character.get("initial_setup", ""))
     prompt = compile_prompt(
         character, state, history, req.message,
         long_term_memories=memories,
         user_action=req.action or None,
+        initial_setup=meta.get("initial_setup"),
+        user_patch=meta.get("user_patch"),
     )
     return character, history, intent_result, state, prompt, memories
 
@@ -249,11 +275,14 @@ def chat(req: ChatRequest) -> ChatResponse:
     # 2.5) 장기기억 검색(RAG) — 생성 이전에 프롬프트에 주입
     memories = memory_store.search_memories(req.session_id, req.effective_message())
 
+    meta = session_meta.init_if_absent(req.session_id, character.get("initial_setup", ""))
     # 3) 동적 프롬프트 주입 후 추론
     prompt = compile_prompt(
         character, state, history, req.message,
         long_term_memories=memories,
         user_action=req.action or None,
+        initial_setup=meta.get("initial_setup"),
+        user_patch=meta.get("user_patch"),
     )
     try:
         reply = gemma_client.generate(prompt, mood=state.mood())
