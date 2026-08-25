@@ -1,0 +1,12 @@
+.env
+node_modules/
+web/dist/
+__pycache__/
+server.log
+*.log
+
+# 런타임 데이터 / 로컬 임시파일
+data/
+.pi/
+nul
+out.json
