@@ -22,6 +22,26 @@ class ValidationError(Exception):
     pass
 
 
+# ── Redis 폴백 (서버리스: 읽기 전용 FS라 파일 저장 불가) ──
+CARD_KEY_PREFIX = "if:card:"
+_rc = None
+
+
+def _redis():
+    global _rc
+    url = os.environ.get("REDIS_URL")
+    if not url:
+        return None
+    if _rc is None:
+        try:
+            import redis
+            _rc = redis.Redis.from_url(url, decode_responses=True, socket_timeout=3)
+            _rc.ping()
+        except Exception:
+            return None
+    return _rc
+
+
 def validate_card(card: dict) -> dict:
     """경량 스키마 검증 (외부 의존성 없음). 실패 시 ValidationError."""
     for key in REQUIRED:
@@ -48,25 +68,56 @@ def save_card(card: dict) -> dict:
     card = validate_card(card)
     CHARACTERS_DIR.mkdir(parents=True, exist_ok=True)
     path = CHARACTERS_DIR / f"{card['id']}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(card, f, ensure_ascii=False, indent=2)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(card, f, ensure_ascii=False, indent=2)
+    except OSError:
+        # 읽기 전용 FS(서버리스) → Redis에 저장
+        r = _redis()
+        if not r:
+            raise ValidationError("캐릭터 저장 실패: 쓰기 가능한 스토리지가 없습니다 (REDIS_URL 확인)")
+        r.set(CARD_KEY_PREFIX + card["id"], json.dumps(card, ensure_ascii=False))
     return card
 
 
 def load_character(character_id: str) -> dict | None:
     matches = list(CHARACTERS_DIR.rglob(f"{character_id}.json"))
-    if not matches:
-        return None
-    path = matches[0]
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    if matches:
+        with open(matches[0], encoding="utf-8") as f:
+            return json.load(f)
+    # 파일 시스템에 없으면 Redis에서 찾기 (서버리스에서 생성된 캐릭터)
+    r = _redis()
+    if r:
+        try:
+            raw = r.get(CARD_KEY_PREFIX + character_id)
+            if raw:
+                return json.loads(raw)
+        except Exception:
+            pass
+    return None
 
 
 def list_characters() -> list[dict]:
-    if not CHARACTERS_DIR.exists():
-        return []
     out = []
-    for p in sorted(CHARACTERS_DIR.rglob("char_*.json")):
-        with open(p, encoding="utf-8") as f:
-            out.append(json.load(f))
-    return out
+    seen_ids = set()
+    if CHARACTERS_DIR.exists():
+        for p in sorted(CHARACTERS_DIR.rglob("char_*.json")):
+            try:
+                with open(p, encoding="utf-8") as f:
+                    out.append(json.load(f))
+                    seen_ids.add(out[-1].get("id"))
+            except Exception:
+                continue
+    # Redis에 저장된 (서버리스에서 생성된) 캐릭터 병합
+    r = _redis()
+    if r:
+        try:
+            for key in r.scan_iter(CARD_KEY_PREFIX + "*"):
+                raw = r.get(key)
+                if raw:
+                    card = json.loads(raw)
+                    if card.get("id") not in seen_ids:
+                        out.append(card)
+        except Exception:
+            pass
+    return sorted(out, key=lambda c: c.get("name", ""))
