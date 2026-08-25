@@ -156,7 +156,8 @@ def search_memories(session_id: str, query: str, k: int = TOP_K) -> list[str]:
     return [text for _, text in scored[:k]]
 
 
-def save_memory(session_id: str, turn: int, text: str) -> None:
+def save_memory(session_id: str, turn: int, text: str) -> bool:
+    """기억 저장. 실제로 저장되었으면 True."""
     emb_json = None
     try:
         from library.inference import gemma_client
@@ -175,9 +176,10 @@ def save_memory(session_id: str, turn: int, text: str) -> None:
             pipe.ltrim(MEM_KEY_PREFIX + session_id, -MAX_MEMORIES, -1)
             pipe.expire(MEM_KEY_PREFIX + session_id, 60 * 60 * 24 * 30)  # 30일
             pipe.execute()
-            return
+            return True
         except Exception as e:
             print(f"[memory] Redis 기억 저장 실패: {e}")
+            return False
 
     if _sqlite_ok():
         with _conn() as conn:
@@ -185,6 +187,10 @@ def save_memory(session_id: str, turn: int, text: str) -> None:
                 "INSERT INTO memories (session_id, turn, text, embedding, created_at) VALUES (?, ?, ?, ?, ?)",
                 (session_id, turn, text.strip(), emb_json, time.time()),
             )
+            return True
+
+    print("[memory] 저장 가능한 스토리지가 없어 기억을 폐기했습니다 (REDIS_URL 확인 권장)")
+    return False
 
 
 def summarize_and_store(session_id: str, turn: int, history: list[dict]) -> str | None:
