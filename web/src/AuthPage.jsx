@@ -35,42 +35,71 @@ export default function AuthPage({ onAuth }) {
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <h1>iF<span>이프</span></h1>
-        <p className="auth-tagline">당신의 이야기를 기억합니다.</p>
+      {/* 배경 장식 */}
+      <div className="auth-bg-orb orb1" />
+      <div className="auth-bg-orb orb2" />
 
-        <div className="auth-tabs">
-          <button className={mode === 'login' ? 'on' : ''} onClick={() => setMode('login')}>로그인</button>
-          <button className={mode === 'register' ? 'on' : ''} onClick={() => setMode('register')}>회원가입</button>
+      <div className="auth-card">
+        <div className="auth-logo">
+          <h1>iF<span>이프</span></h1>
+          <p>당신의 이야기를 기억합니다.</p>
+        </div>
+
+        <div className="auth-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={mode === 'login'}
+            className={mode === 'login' ? 'on' : ''} onClick={() => { setMode('login'); setError('') }}>
+            로그인
+          </button>
+          <button type="button" role="tab" aria-selected={mode === 'register'}
+            className={mode === 'register' ? 'on' : ''} onClick={() => { setMode('register'); setError('') }}>
+            회원가입
+          </button>
+          <span className={`tab-glider ${mode}`} />
         </div>
 
         <form onSubmit={submit} className="auth-form">
-          <label>닉네임
-            <input value={nickname} onChange={e => setNickname(e.target.value)}
-              placeholder={mode === 'register' ? 'AI가 불러줄 이름 (2~20자)' : '닉네임'}
-              maxLength={20} autoComplete="username" />
+          <label className="field">
+            <span className="field-label">닉네임</span>
+            <div className="input-wrap">
+              <span className="input-icon">👤</span>
+              <input value={nickname} onChange={e => setNickname(e.target.value)}
+                placeholder={mode === 'register' ? 'AI가 불러줄 이름 (2~20자)' : '닉네임'}
+                maxLength={20} autoComplete="username" required />
+            </div>
           </label>
-          <label>비밀번호
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={mode === 'register' ? '6자 이상' : '비밀번호'}
-              maxLength={64} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} />
+
+          <label className="field">
+            <span className="field-label">비밀번호</span>
+            <div className="input-wrap">
+              <span className="input-icon">🔒</span>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder={mode === 'register' ? '6자 이상' : '비밀번호'}
+                maxLength={64} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required />
+            </div>
           </label>
+
           {mode === 'register' && (
-            <label>비밀번호 확인
-              <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
-                placeholder="비밀번호 재입력"
-                maxLength={64} autoComplete="new-password" />
+            <label className="field">
+              <span className="field-label">비밀번호 확인</span>
+              <div className="input-wrap">
+                <span className="input-icon">🔒</span>
+                <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
+                  placeholder="비밀번호 재입력"
+                  maxLength={64} autoComplete="new-password" required />
+              </div>
             </label>
           )}
-          {error && <p className="err">{error}</p>}
-          <button type="submit" className="cta" disabled={busy}>
-            {busy ? '처리 중…' : mode === 'login' ? '로그인' : '가입하고 시작하기'}
+
+          {error && <p className="auth-error">⚠️ {error}</p>}
+
+          <button type="submit" className={`auth-submit ${mode}`} disabled={busy}>
+            {busy ? <><i className="spin" /> 처리 중…</> : mode === 'login' ? '로그인' : '가입하고 시작하기'}
           </button>
         </form>
 
         <p className="auth-note">
-          닉네임과 비밀번호만으로 가입할 수 있어요.<br />
-          같은 계정으로 어느 기기에서 접속해도 대화가 이어집니다.
+          닉네임과 비밀번호만으로 간단하게 가입할 수 있어요.<br />
+          같은 계정이면 어느 기기에서든 대화가 이어집니다.
         </p>
       </div>
     </div>
