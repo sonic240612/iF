@@ -1,0 +1,11 @@
+.git
+.env
+*.log
+data/
+.pi/
+nul
+out.json
+web/node_modules/
+web/dist/
+__pycache__/
+tests/

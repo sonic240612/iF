@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import json
+import os
 import time
 from dataclasses import dataclass, field, asdict
 
@@ -58,17 +60,67 @@ class EmotionState:
 
 
 class FSMEngine:
-    """인메모리 세션 스토어 (운영 시 Redis로 교체되는 지점)."""
+    """세션 스토어.
+
+    REDIS_URL 환경변수가 있으면 Redis에 영속화 (멀티 인스턴스/재시작 대응),
+    없으면 인메모리로 동작한다. 두 경로 모두 동일한 인터페이스.
+    """
+    PREFIX = "if:fsm:"
 
     def __init__(self) -> None:
         self._sessions: dict[str, EmotionState] = {}
+        self._redis = None
+        url = os.environ.get("REDIS_URL")
+        if url:
+            try:
+                import redis
+                self._redis = redis.Redis.from_url(url, decode_responses=True, socket_timeout=3)
+                self._redis.ping()
+                print("[FSM] Redis 연결됨 — 감정 상태 영속화 활성화")
+            except Exception as e:
+                print(f"[FSM] Redis 연결 실패, 인메모리 폴백: {e}")
+                self._redis = None
+
+    def _load(self, session_id: str) -> EmotionState | None:
+        if not self._redis:
+            return None
+        raw = self._redis.get(self.PREFIX + session_id)
+        if not raw:
+            return None
+        d = json.loads(raw)
+        return EmotionState(**d)
+
+    def _persist(self, session_id: str, state: EmotionState) -> None:
+        if self._redis:
+            try:
+                self._redis.set(self.PREFIX + session_id, json.dumps(state.to_dict()))
+            except Exception as e:
+                print(f"[FSM] Redis 저장 실패(메모리만 유지): {e}")
 
     def get(self, session_id: str) -> EmotionState:
-        return self._sessions.setdefault(session_id, EmotionState())
+        if session_id not in self._sessions:
+            state = self._load(session_id)
+            self._sessions[session_id] = state or EmotionState()
+        return self._sessions[session_id]
+
+    def exists(self, session_id: str) -> bool:
+        if session_id in self._sessions:
+            return True
+        return self._load(session_id) is not None
+
+    def pop(self, session_id: str) -> None:
+        self._sessions.pop(session_id, None)
+        if self._redis:
+            try:
+                self._redis.delete(self.PREFIX + session_id)
+            except Exception:
+                pass
 
     def commit(self, session_id: str, delta: dict[str, float], decay: float = 0.0) -> EmotionState:
         state = self.get(session_id)
-        return state.apply_delta(delta, decay=decay)
+        state.apply_delta(delta, decay=decay)
+        self._persist(session_id, state)
+        return state
 
 
 engine = FSMEngine()

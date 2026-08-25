@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: if-app
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GOOGLE_API_KEY
+        sync: false      # 대시보드에서 직접 입력 (필수)
+      - key: GOOGLE_API_KEY_2
+        sync: false      # 선택
+      - key: REDIS_URL
+        sync: false      # 선택 (Upstash 무료 티어 등)

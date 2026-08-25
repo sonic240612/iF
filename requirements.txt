@@ -1,0 +1,9 @@
+# 런타임 의존성
+fastapi>=0.115
+uvicorn[standard]>=0.32
+pydantic>=2.9
+redis>=5.2          # REDIS_URL 설정 시 사용 (선택)
+httpx>=0.28         # TestClient용
+
+# 개발/테스트 (CI에서 설치)
+pytest>=8.3

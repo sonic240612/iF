@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import tomllib
@@ -121,7 +122,7 @@ def ai_assist_character(req: AssistRequest) -> dict:
 def get_history(session_id: str) -> dict:
     """재접속 시 이전 대화 복원용."""
     history = memory_store.load_history(session_id)
-    state = fsm._sessions.get(session_id)
+    state = fsm.get(session_id) if fsm.exists(session_id) else None
     return {"messages": history, "state": state.to_dict() if state else None}
 
 
@@ -129,7 +130,7 @@ def get_history(session_id: str) -> dict:
 def reset_session(session_id: str) -> dict:
     """대화 초기화: 히스토리 + FSM 상태 + 장기기억 삭제."""
     _histories.pop(session_id, None)
-    fsm._sessions.pop(session_id, None)
+    fsm.pop(session_id)
     memory_store.delete_history(session_id)
     return {"status": "reset"}
 
@@ -213,6 +214,7 @@ def chat_stream(req: ChatRequest):
     )
 
 
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
     character = builder.load_character(req.character_id)
@@ -261,6 +263,12 @@ def chat(req: ChatRequest) -> ChatResponse:
 
 @app.get("/sessions/{session_id}/state")
 def session_state(session_id: str) -> dict:
-    if session_id not in fsm._sessions:
+    if not fsm.exists(session_id):
         raise HTTPException(status_code=404, detail="session not found")
-    return fsm._sessions[session_id].to_dict()
+    return fsm.get(session_id).to_dict()
+
+# ── 정적 SPA 서빙 (배포: web/dist가 있으면 단일 서비스로 운영) ──
+_DIST = ROOT / "web" / "dist"
+if _DIST.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="spa")
