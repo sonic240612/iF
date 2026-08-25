@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pip install -r requirements.txt && cd web && npm ci --no-audit --no-fund ; (node node_modules/esbuild/install.js || npm rebuild esbuild) ; npm run build && mkdir -p api/runtime && cp -r library api/runtime/ && cp -r configs api/runtime/ && cp -r characters api/runtime/",
+  "buildCommand": "bash scripts/vercel-build.sh",
   "outputDirectory": "web/dist",
   "functions": {
     "api/index.py": {
