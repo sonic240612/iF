@@ -68,6 +68,10 @@ class AllKeysFailedError(RuntimeError):
     pass
 
 
+class ContextOverflowError(RuntimeError):
+    """프롬프트가 모델의 최대 입력 토큰 수를 초과했을 때."""
+
+
 _THOUGHT_RE = re.compile(r"<thought>.*?</thought>", re.DOTALL)
 
 # 마지막 생성의 finish_reason (api.py가 잘림 여부 확인용)
@@ -145,6 +149,12 @@ def generate_remote(prompt: str) -> str:
             invalid_key = e.code == 400 and any(
                 s in body.lower() for s in ("api key", "api_key", "unregistered", "permission")
             )
+            token_overflow = e.code in (400, 413) and any(
+                s in body.lower() for s in ("maximum number of tokens", "token limit",
+                                            "input tokens", "context length")
+            )
+            if token_overflow:
+                raise ContextOverflowError("프롬프트 길이가 모델의 최대 입력 토큰 수를 초과했습니다.")
             if e.code == 429:
                 # 레이트리밋: 이 키는 2분간 쿨다운 후 다른 키로 계속
                 pool.mark_rate_limited(key)
@@ -221,6 +231,12 @@ def generate_remote_stream(prompt: str):
             invalid_key = e.code == 400 and any(
                 s in body.lower() for s in ("api key", "api_key", "unregistered", "permission")
             )
+            token_overflow = e.code in (400, 413) and any(
+                s in body.lower() for s in ("maximum number of tokens", "token limit",
+                                            "input tokens", "context length")
+            )
+            if token_overflow:
+                raise ContextOverflowError("프롬프트 길이가 모델의 최대 입력 토큰 수를 초과했습니다.")
             if e.code == 429:
                 pool.mark_rate_limited(key)
                 print(f"[gemma_client] stream: key ...{key[-6:]} 429 → cooldown, next")

@@ -72,7 +72,7 @@ class ChatResponse(BaseModel):
 class CharacterCardRequest(BaseModel):
     id: str
     name: str
-    system_prompt: str
+    system_prompt: str = Field(max_length=4_000_000)
     first_message: str
     tags: list[str]
     greeting_mood: str = "neutral"
@@ -200,6 +200,9 @@ def chat_stream(req: ChatRequest):
                 full_text_parts.append(delta)
                 if delta:
                     yield _sse({"type": "delta", "text": delta})
+        except gemma_client.ContextOverflowError as e:
+            yield _sse({"type": "error", "detail": str(e) + " (시스템 프롬프트가 너무 깁니다 — base.toml의 system_prompt_max_chars 조정 가능)"})
+            return
         except Exception as e:
             yield _sse({"type": "error", "detail": str(e)})
             return
@@ -252,7 +255,10 @@ def chat(req: ChatRequest) -> ChatResponse:
         long_term_memories=memories,
         user_action=req.action or None,
     )
-    reply = gemma_client.generate(prompt, mood=state.mood())
+    try:
+        reply = gemma_client.generate(prompt, mood=state.mood())
+    except gemma_client.ContextOverflowError as e:
+        raise HTTPException(status_code=413, detail=str(e))
 
     # 4) 분기 선택지 생성
     cards = narrative.build_choice_cards(intent_result, state.mood())

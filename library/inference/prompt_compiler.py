@@ -4,7 +4,35 @@ FSM 상태를 프롬프트에 주입하는 것은 반드시 토큰 생성 이전
 """
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
+
 from library.fsm.engine import EmotionState
+
+_CFG_PATH = Path(__file__).resolve().parents[2] / "configs" / "base.toml"
+try:
+    with open(_CFG_PATH, "rb") as _f:
+        _CFG = tomllib.load(_f)
+except Exception:
+    _CFG = {}
+
+# 시스템 프롬프트 최대 글자 수 (모델 컨텍스트 보호용 예산).
+# 한국어 기준 대략 1글자 ≈ 0.6~0.9 토큰이므로 10만 자 ≈ 6~9만 토큰.
+DEFAULT_MAX_SYSTEM_CHARS = 100_000
+MAX_SYSTEM_CHARS = int(
+    _CFG.get("model", {}).get("system_prompt_max_chars", DEFAULT_MAX_SYSTEM_CHARS)
+)
+
+
+def fit_to_budget(text: str, max_chars: int | None = None) -> str:
+    """초과분을 앞/뒤를 살리고 중간을 요약 마커로 대체하는 방식으로 압축."""
+    limit = max_chars if max_chars is not None else MAX_SYSTEM_CHARS
+    if not text or len(text) <= limit:
+        return text
+    marker = f"\n\n[...중략: 원본 {len(text):,}자 중 약 {len(text) - limit:,}자 생략...]\n\n"
+    head = int(limit * 0.7)
+    tail = max(0, limit - head - len(marker))
+    return text[:head] + marker + (text[-tail:] if tail else "")
 
 _MOOD_DIRECTIVES = {
     "cold": "지금은 차갑고 거리감 있는 어조로, 짧고 건조하게 대답한다.",
@@ -32,8 +60,9 @@ def compile_prompt(
     user_action: str | None = None,
 ) -> str:
     mood = state.mood()
+    system_prompt = fit_to_budget(character.get("system_prompt", ""))
     lines = [
-        character["system_prompt"],
+        system_prompt,
         f"\n[현재 감정 상태] 호감도={state.affection:.0f} 집착도={state.obsession:.0f} "
         f"혐오={state.enmity:.0f} 질투={state.jealousy:.0f}",
         f"[말투 지시] {_MOOD_DIRECTIVES[mood]}",

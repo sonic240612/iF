@@ -4,6 +4,7 @@ base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 model = "gemma-4-26b-a4b-it"
 max_tokens = 4096
 temperature = 0.9
+system_prompt_max_chars = 100000   # 초과 시 앞/뒤 보존 + 중략 마커로 압축
 
 [fsm]
 bounds = [0.0, 100.0]
