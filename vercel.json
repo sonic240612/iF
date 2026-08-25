@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pip install -r requirements.txt && cd web && npm ci && npm run build && mkdir -p api/runtime && cp -r library api/runtime/ && cp -r configs api/runtime/ && cp -r characters api/runtime/",
+  "outputDirectory": "web/dist",
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index.py" }
+  ]
+}
