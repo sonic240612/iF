@@ -37,10 +37,26 @@ iF는 단순한 1회성 AI 챗봇을 넘어, **캐릭터의 살아있는 감정 
 ### 🌿 분기형 내러티브 (Choice Cards)
 대화 중 핵심 순간에 갈래길 선택지가 등장합니다. 선택지는 문장 그대로 전송되지 않고 **행동 지시**로 처리되어, AI가 그 행동이 일어난 직후의 장면을 이어 그립니다.
 
+### 🎬 서사 일관성 엔진
+- **개장 장면 고정**: 캐릭터의 첫 메시지가 세션 첫 턴에 히스토리로 고정되어, AI가 시작 위치·상황을 인식한 상태로 대화를 시작합니다.
+- **장면 모순 방지**: 직전에 확정된 공간·시간·위치와 모순되는 전개(이미 실내에 도착했는데 갑자기 밖의 비 소식 등)를 금지하는 지시문이 프롬프트에 주입됩니다.
+- **직전 행동 유지**: 캐릭터가 제안한 행동(앉으라는 대사 후 앉은 상태 유지 등)은 다음 턴에서도 이어집니다.
+
+### 🌱 초기 설정 & 📝 유저 패치
+| | 초기 설정 (제작자) | 유저 패치 (유저) |
+|---|---|---|
+| 작성 시점 | 카드 생성 시 | 채팅 중 언제든 (📝 버튼) |
+| 길이 제한 | 1,000자 | 1,000자 |
+| 지속 기간 | **약 20턴** 후 자연 소멸 (휘발성) | 무기한 상시 반영 |
+
+초기 설정으로 도입부 분위기를 제어하면서도 유저의 자유도를 해치지 않고, 유저 패치로 진행된 서사·감정선·묘사 스타일("짧고 문학적으로" 등)을 지속적으로 지시할 수 있습니다.
+
 ### 🎨 Creator Studio
 | 직접 만들기 | AI 어시스트 |
 |---|---|
-| 시스템 프롬프트, 첫 메시지, 태그, 장르, 톤, 카드 색상을 모두 직접 설정 | **시스템 프롬프트 한 줄만 작성하면** 첫 메시지·태그·장르·소개글·예시 대화를 AI가 자동 완성 |
+| 시스템 프롬프트, 첫 메시지, 태그, 장르, 초기 설정, 톤, 카드 색상을 모두 직접 설정 | **시스템 프롬프트 한 줄만 작성하면** 첫 메시지·태그·장르·소개글·예시 대화를 AI가 자동 완성 |
+
+유저가 만든 모든 캐릭터에는 `커스텀` 태그가 자동으로 붙어 목록에서 구분됩니다. 생성된 캐릭터는 언제든 삭제 API로 정리할 수 있습니다.
 
 ### 🗝️ 멀티 키 라운드로빈
 `GOOGLE_API_KEY`, `GOOGLE_API_KEY_2`, `GOOGLE_API_KEY_3`… 형식으로 키를 무제한 추가할 수 있으며, 요청마다 Round Robin으로 순회합니다. 429 레이트리밋이 걸린 키는 **2분간 자동 쿨다운** 후 로테이션에 복귀하고, 5xx·네트워크 오류·무효 키는 즉시 다음 키로 폴백합니다.
@@ -57,10 +73,10 @@ python -m library.inference.key_cli list / add / remove   # 키 관리 CLI
 [API] FastAPI
     │
     ├─ 감성 분류기 ──┐ (병렬)
-    ├─ FSM 감정 엔진 ←┘   Redis-ready 인메모리
-    ├─ RAG 장기기억       SQLite (Milvus/Pinecone 교체 지점)
-    ├─ 프롬프트 컴파일러   감정+기억+서사지시 주입
-    │
+    ├─ FSM 감정 엔진 ←┘   Redis 영속화 (미설정 시 인메모리)
+    ├─ 세션 메타          초기 설정 스냅샷 · 유저 패치
+    ├─ RAG 장기기억       임베딩 벡터 검색 (SQLite·Redis)
+    ├─ 프롬프트 컴파일러   감정+기억+초기설정+패치+서사지시 주입
 [AI Inference] Gemma-4-26b-a4b-it (Gemini API)
     키 라운드로빈 · 429 쿨다운 · 폴백 재시도
 ```
@@ -104,21 +120,23 @@ python -m pytest tests/ -q
 │   └── schemas/character_card.json # 캐릭터 카드 JSON Schema
 ├── characters/methods/            # 캐릭터 카드 (앨리스, 린, 설희, 연우)
 ├── library/
-│   ├── api.py                     # FastAPI 라우팅 (chat/stream, assist, sessions)
+│   ├── api.py                     # FastAPI 라우팅 (chat/stream, assist, sessions, patch)
 │   ├── fsm/
 │   │   ├── engine.py              # 감정 벡터 FSM + 무드 도출
+│   │   ├── session_meta.py        # 초기 설정 스냅샷 · 유저 패치 저장소
 │   │   └── classifier.py          # 감성/의도 분류기
 │   ├── inference/
-│   │   ├── gemma_client.py        # Gemma 추론 (스트리밍, 키 폴백)
+│   │   ├── gemma_client.py        # Gemma 추론 (스트리밍, 키 폴백, 컨텍스트 초과 감지)
 │   │   ├── key_manager.py         # 라운드로빈 키 풀 + 쿨다운
-│   │   ├── prompt_compiler.py     # 동적 프롬프트 컴파일
+│   │   ├── prompt_compiler.py     # 동적 프롬프트 컴파일 (예산 관리 포함)
 │   │   └── narrative.py           # Choice Card 생성
-│   ├── memory/store.py            # RAG 장기기억 + 히스토리 영속화
+│   ├── memory/store.py            # RAG 장기기억(벡터) + 히스토리 영속화
 │   └── creators/
-│       ├── builder.py             # 캐릭터 카드 검증/저장
+│       ├── builder.py             # 캐릭터 카드 검증/저장/삭제 (커스텀 태그 자동 부여)
 │       └── assist.py              # AI 어시스트 자동완성
 ├── web/src/                       # React SPA (Home / Detail / Chat / Create)
-└── tests/                         # pytest
+├── scripts/stress_test.py         # 길이 스트레스 테스트 스크립트
+└── tests/                         # pytest (22개)
 ```
 
 ## 🔌 API 요약
@@ -128,15 +146,18 @@ python -m pytest tests/ -q
 | `GET` | `/characters` | 캐릭터 목록 |
 | `POST` | `/characters` | 캐릭터 카드 직접 등록 |
 | `POST` | `/characters/assist` | 시스템 프롬프트만으로 AI 캐릭터 생성 |
+| `DELETE` | `/characters/{id}` | 캐릭터 삭제 |
 | `POST` | `/chat` | 채팅 (일괄 응답) |
 | `POST` | `/chat/stream` | 채팅 (SSE 스트리밍) |
-| `GET` | `/sessions/{id}/history` | 대화 복원 |
+| `GET` | `/sessions/{id}/history` | 대화 복원 (+유저 패치) |
 | `DELETE` | `/sessions/{id}` | 대화 초기화 |
+| `GET` / `PUT` | `/sessions/{id}/user-patch` | 유저 패치 조회/저장 |
 
 ## 🛣️ 로드맵
 
-- [ ] Redis 세션 저장소 (멀티 인스턴스 대응)
-- [x] 임베딩 기반 벡터 검색 (text-embedding-004 · Milvus/Pinecone 전환 예정)
+- [x] Redis 세션 저장소 (`REDIS_URL` 설정 시 FSM·히스토리·기억·카드 모두 영속화)
+- [x] 임베딩 기반 벡터 검색 (text-embedding-004)
+- [ ] Milvus/Pinecone 전환 (대규모 운영용)
 - [ ] React Native 모바일 앱
 
 ---

@@ -66,6 +66,10 @@ def validate_card(card: dict) -> dict:
 
 def save_card(card: dict) -> dict:
     card = validate_card(card)
+    # 유저 제작 카드 식별용 태그 자동 부여
+    tags = [t for t in card.get("tags", []) if t != "커스텀"]
+    card["tags"] = ["커스텀"] + tags
+
     CHARACTERS_DIR.mkdir(parents=True, exist_ok=True)
     path = CHARACTERS_DIR / f"{card['id']}.json"
     try:
