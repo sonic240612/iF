@@ -192,7 +192,9 @@ export default function Chat({ character, onExit }) {
         <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
           📝 <span className="patch-label">유저 패치</span>
         </button>
-        <button className="reset-btn" title="대화 초기화" onClick={() => setConfirmReset(true)}>🗑</button>
+        <button className="reset-btn" title="대화 기록과 감정·기억을 초기화합니다" onClick={() => setConfirmReset(true)}>
+          🗑 <span className="btn-label">초기화</span>
+        </button>
         {state?.turn > 0 && (
           <div className="state-chips">
             {STATE_LABELS.map(([key, label]) => (

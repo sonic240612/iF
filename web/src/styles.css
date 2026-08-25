@@ -396,14 +396,18 @@ button { font-family: inherit; }
 }
 
 .reset-btn {
-  margin-left: auto;
-  background: none; border: none; font-size: 17px;
-  cursor: pointer; opacity: .55; padding: 6px;
-  transition: opacity .15s, transform .1s;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid #2a3040; background: transparent;
+  color: var(--text-dim); font-size: 13px;
+  cursor: pointer; transition: all .15s;
 }
-.reset-btn:hover { opacity: 1; }
-.reset-btn:active { transform: scale(.9); }
-.state-chips { margin-left: auto; }
+.reset-btn:hover {
+  border-color: #ff5c5c; color: #ff5c5c;
+}
+@media (max-width: 600px) { 
+  .patch-label, .reset-btn .btn-label { display: none; }
+}
 
 .memory-note.trunc { background: rgba(255,180,80,.15); color: #ffc46b; }
 
@@ -415,6 +419,7 @@ button { font-family: inherit; }
   color: var(--text-dim); font-size: 13px;
   cursor: pointer; transition: all .15s;
 }
+.patch-btn.on:hover { color: var(--accent); }
 .patch-btn:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
 .patch-btn.on {
   border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
