@@ -488,3 +488,9 @@ button { font-family: inherit; }
 .btn-cancel:hover { background: rgba(255,255,255,.16); }
 .btn-danger { background: #ff5c5c; color: #fff; }
 .btn-danger:hover { background: #ff4040; }
+
+/* ── 묘사/생각/행동 (흐리게) ── */
+.bubble .narration {
+  opacity: 0.58;
+  font-style: italic;
+}

@@ -17,6 +17,27 @@ const STATE_LABELS = [
   ['jealousy', '질투'],
 ]
 
+
+/** 응답 텍스트를 대사/묘사(흐리게)로 구분해 렌더링.
+ *  *...* : 행동·생각·묘사 (신규 형식) / (...) : 기존 괄호 묘사 — 모두 흐리게 표시 */
+function renderRichText(text) {
+  if (!text) return null
+  const parts = []
+  const re = /(\*[^*]+\*|\([^)]*\))/g
+  let last = 0, m, key = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push({ t: 'plain', v: text.slice(last, m.index) })
+    parts.push({ t: 'muted', v: m[0] })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push({ t: 'plain', v: text.slice(last) })
+  return parts.map((p, i) =>
+    p.t === 'plain'
+      ? <React.Fragment key={i}>{p.v}</React.Fragment>
+      : <span key={i} className="narration">{p.v}</span>
+  )
+}
+
 export default function Chat({ character, onExit }) {
   // 캐릭터별 고정 세션 ID — 새로고침/재접속해도 대화 유지
   const [sessionId] = useState(() => {
@@ -211,9 +232,11 @@ export default function Chat({ character, onExit }) {
           {memoryNote && <div className="memory-note">{memoryNote}</div>}
           {truncNote && <div className="memory-note trunc">⚠️ 응답이 길어 일부 잘렸습니다</div>}
           {messages.map((m, i) => (
-            <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
+            <div key={i} className={`bubble ${m.role}`}>
+              {renderRichText(m.content)}
+            </div>
           ))}
-          {typing && <div className="bubble assistant">{typing}<span className="caret" /></div>}
+          {typing && <div className="bubble assistant">{renderRichText(typing)}<span className="caret" /></div>}
           {busy && !typing && (
             <div className="bubble assistant thinking">
               <i /><i /><i />
