@@ -187,7 +187,9 @@ export default function Chat({ character, onExit }) {
             ● {theme.name}{state?.turn > 0 ? ` · ${state.turn}턴` : ''}
           </span>
         </div>
-        <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="유저 패치" onClick={() => setShowPatch(v => !v)}>📝</button>
+        <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
+          📝 <span className="patch-label">유저 패치</span>
+        </button>
         <button className="reset-btn" title="대화 초기화" onClick={resetChat}>🗑</button>
         {state?.turn > 0 && (
           <div className="state-chips">

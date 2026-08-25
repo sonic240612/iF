@@ -409,13 +409,18 @@ button { font-family: inherit; }
 
 /* ── 유저 패치 패널 ── */
 .patch-btn {
-  margin-left: auto;
-  background: none; border: none; font-size: 17px;
-  cursor: pointer; opacity: .55; padding: 6px;
-  transition: opacity .15s, transform .1s;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid #2a3040; background: transparent;
+  color: var(--text-dim); font-size: 13px;
+  cursor: pointer; transition: all .15s;
 }
-.patch-btn:hover { opacity: 1; }
-.patch-btn.on { opacity: 1; transform: scale(1.1); }
+.patch-btn:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
+.patch-btn.on {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); font-weight: 700;
+}
+@media (max-width: 600px) { .patch-label { display: none; } } /* 모바일에선 아이콘만 */
 .state-chips { margin-left: auto; }
 .chat-header:has(.patch-btn.on) .state-chips { margin-left: auto; }
 .patch-panel {
