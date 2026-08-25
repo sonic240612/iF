@@ -10,3 +10,7 @@ data/
 .pi/
 nul
 out.json
+
+# 기획 문서 (로컬 전용)
+iF_CLAUDE.md
+if_prd.md
