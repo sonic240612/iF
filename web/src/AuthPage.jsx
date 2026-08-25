@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { setAuth } from './api.js'
 
 /** 닉네임 + 비밀번호 로그인/가입 화면 */
-export default function AuthPage({ onAuth }) {
+export default function AuthPage({ notice, onAuth }) {
   const [mode, setMode] = useState('login') // login | register
   const [nickname, setNickname] = useState('')
   const [password, setPassword] = useState('')
@@ -40,6 +40,7 @@ export default function AuthPage({ onAuth }) {
       <div className="auth-bg-orb orb2" />
 
       <div className="auth-card">
+        {notice && <div className="auth-notice">🔔 {notice}</div>}
         <div className="auth-logo">
           <h1>iF<span>이프</span></h1>
           <p>당신의 이야기를 기억합니다.</p>

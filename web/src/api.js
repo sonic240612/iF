@@ -28,6 +28,7 @@ export async function apiJson(url, method = 'GET', body) {
     headers: authHeaders(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+  checkAuthExpired(res)
   let data = null
   try { data = await res.json() } catch {}
   if (!res.ok) {
@@ -37,4 +38,17 @@ export async function apiJson(url, method = 'GET', body) {
     throw Object.assign(new Error(detail), { status: res.status })
   }
   return data
+}
+
+/* ── 세션(토큰) 만료 알림 ──
+   어디서든 401을 받으면 이 콜백이 호출되고, 앱이 로그인 화면으로 되돌린다. */
+let _onAuthExpired = null
+
+export function setOnAuthExpired(fn) {
+  _onAuthExpired = fn
+}
+
+export function notifyAuthExpired() {
+  clearAuth()
+  _onAuthExpired?.()
 }

@@ -650,3 +650,12 @@ button { font-family: inherit; }
   transition: all .15s;
 }
 .user-chip button:hover { background: #ff5c5c; color: #fff; }
+
+/* 세션 만료 안내 배너 */
+.auth-notice {
+  text-align: center;
+  padding: 11px 14px; border-radius: 11px;
+  background: rgba(122,162,247,.1); color: #9db9ff;
+  border: 1px solid rgba(122,162,247,.3);
+  font-size: 13px; margin-bottom: 18px;
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { authHeaders } from './api.js'
+import { authHeaders, notifyAuthExpired } from './api.js'
 
 const MOOD_THEMES = {
   cold:         { name: '냉담',   accent: '#7aa2f7' },
@@ -66,7 +66,10 @@ export default function Chat({ character, onExit }) {
   // 재접속 시 서버에서 이전 대화 복원
   useEffect(() => {
     fetch(`/api/sessions/${sessKey}/history`, { headers: authHeaders() })
-      .then(r => r.json())
+      .then(r => {
+        if (r.status === 401) { notifyAuthExpired(); throw new Error('expired') }
+        return r.json()
+      })
       .then(data => {
         if (data.messages?.length) {
           setMessages(data.messages)
@@ -94,7 +97,10 @@ export default function Chat({ character, onExit }) {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ patch: patchText }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        if (res.status === 401) notifyAuthExpired()
+        throw new Error()
+      }
       setPatchSavedAt(new Date().toLocaleTimeString())
     } catch { setPatchSavedAt(null) }
   }
@@ -129,7 +135,10 @@ export default function Chat({ character, onExit }) {
             : { character_id: character.id, message: text }
         ),
       })
-      if (!res.ok || !res.body) throw new Error('stream unavailable')
+      if (!res.ok || !res.body) {
+        if (res.status === 401) notifyAuthExpired()
+        throw new Error('stream unavailable')
+      }
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()

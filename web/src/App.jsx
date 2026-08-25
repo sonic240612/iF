@@ -4,13 +4,14 @@ import CharacterDetail from './CharacterDetail.jsx'
 import Chat from './Chat.jsx'
 import CreateCharacter from './CreateCharacter.jsx'
 import AuthPage from './AuthPage.jsx'
-import { getAuth, clearAuth, authHeaders } from './api.js'
+import { getAuth, clearAuth, authHeaders, notifyAuthExpired, setOnAuthExpired } from './api.js'
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => getAuth()?.nickname || null)
   const [characters, setCharacters] = useState([])
   const [view, setView] = useState('home') // home | detail | chat | create
   const [selectedId, setSelectedId] = useState(null)
+  const [authNotice, setAuthNotice] = useState('')
 
   function refresh() {
     fetch('/api/characters')
@@ -19,6 +20,17 @@ export default function App() {
       .catch(() => {})
   }
   useEffect(refresh, [authUser])
+
+  // 어디서든 401을 받으면 자동 로그아웃 + 안내와 함께 로그인 화면으로
+  useEffect(() => {
+    setOnAuthExpired(() => {
+      clearAuth()
+      setAuthUser(null)
+      setSelectedId(null)
+      setView('home')
+      setAuthNotice('세션이 만료되었습니다. 다시 로그인해 주세요.')
+    })
+  })
 
   const selected = characters.find(c => c.id === selectedId) || null
 
@@ -44,7 +56,7 @@ export default function App() {
   }
 
   if (!authUser) {
-    return <AuthPage onAuth={(nickname) => { setAuthUser(nickname); refresh(); setView('home') }} />
+    return <AuthPage notice={authNotice} onAuth={(nickname) => { setAuthUser(nickname); refresh(); setView('home') }} />
   }
 
   if (view === 'chat' && selected) {
