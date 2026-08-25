@@ -308,6 +308,7 @@ def _prepare_chat(req: ChatRequest, user: str):
         user_action=req.action or None,
         initial_setup=meta.get("initial_setup"),
         user_patch=meta.get("user_patch"),
+        user_nickname=user,
     )
     return character, history, intent_result, state, prompt, memories
 
@@ -406,6 +407,7 @@ def chat(req: ChatRequest, user: str = Depends(current_user)) -> ChatResponse:
         user_action=req.action or None,
         initial_setup=meta.get("initial_setup"),
         user_patch=meta.get("user_patch"),
+        user_nickname=user,
     )
     try:
         reply = sanitize_reply(gemma_client.generate(prompt, mood=state.mood()))

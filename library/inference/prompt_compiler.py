@@ -71,6 +71,7 @@ def compile_prompt(
     user_action: str | None = None,
     initial_setup: str | None = None,
     user_patch: str | None = None,
+    user_nickname: str | None = None,
 ) -> str:
     mood = state.mood()
     system_prompt = fit_to_budget(character.get("system_prompt", ""))
@@ -80,6 +81,11 @@ def compile_prompt(
         f"혐오={state.enmity:.0f} 질투={state.jealousy:.0f}",
         f"[말투 지시] {_MOOD_DIRECTIVES[mood]}",
     ]
+    if user_nickname:
+        lines.append(
+            f"[유저 정보] 상대방의 이름은 '{user_nickname}'이다. "
+            "자연스러울 때 이 이름으로 불러주고, 메타 표기에도 '유저' 대신 이 이름을 사용한다."
+        )
     # 초기 설정: 도입부(~20턴)에만 유효한 휘발성 지시. 이후 유저의 선택이 우선.
     if initial_setup and state.turn <= INITIAL_SETUP_TURNS:
         lines.append("[초기 설정 — 도입부 지침, 서사가 진행될수록 유저의 선택이 우선한다]")
@@ -95,12 +101,12 @@ def compile_prompt(
     lines.append(_NARRATIVE_DIRECTIVES)
     lines.append("\n[최근 대화]")
     for turn in history[-10:]:
-        role = "유저" if turn["role"] == "user" else "캐릭터"
+        role = user_nickname if (turn["role"] == "user" and user_nickname) else ("유저" if turn["role"] == "user" else "캐릭터")
         lines.append(f"{role}: {turn['content']}")
     if user_action:
-        lines.append(f"\n[유저가 선택한 행동]: {user_action}")
+        lines.append(f"\n[{user_nickname or '유저'}가 선택한 행동]: {user_action}")
         lines.append("(위 행동을 유저 대신 수행하는 장면을 그려라. 행동 문구를 그대로 반복하지 말고, 그 행동이 일어난 직후의 전개를 묘사하라.)")
     else:
-        lines.append(f"\n유저: {user_message}")
+        lines.append(f"\n{user_nickname or '유저'}: {user_message}")
     lines.append("캐릭터:")
     return "\n".join(lines)
