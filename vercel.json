@@ -5,7 +5,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": ["../library/**/*", "../configs/**/*", "../characters/**/*"]
+      "includeFiles": "../library/**/*,../configs/**/*,../characters/**/*"
     }
   },
   "rewrites": [
