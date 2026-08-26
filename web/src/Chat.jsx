@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { authHeaders, notifyAuthExpired, apiJson } from './api.js'
+import EmotionGraph from './EmotionGraph.jsx'
 
 const MOOD_THEMES = {
   cold:         { name: '냉담',   accent: '#7aa2f7' },
@@ -55,6 +56,8 @@ export default function Chat({ character, onExit }) {
   const [patchSavedAt, setPatchSavedAt] = useState(null)
   const [showMem, setShowMem] = useState(false)
   const [memList, setMemList] = useState([])
+  const [showGraph, setShowGraph] = useState(false)
+  const [emoData, setEmoData] = useState(null)
   const [confirmExport, setConfirmExport] = useState(false)
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
@@ -108,6 +111,14 @@ export default function Chat({ character, onExit }) {
     } catch { setPatchSavedAt(null) }
   }
 
+
+
+  async function loadEmotions() {
+    try {
+      const data = await apiJson(`/api/sessions/${sessKey}/emotions`)
+      setEmoData(data.history || [])
+    } catch { setEmoData([]) }
+  }
 
   async function loadMemories() {
     try {
@@ -284,6 +295,9 @@ export default function Chat({ character, onExit }) {
         </div>
         <button className={`hbtn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
           📝 <span className="btn-label">유저 패치</span>
+        </button>
+        <button className={`hbtn ${showGraph ? 'on' : ''}`} title="감정 변화 그래프" onClick={() => setShowGraph(v => !v)}>
+          📊 <span className="btn-label">감정</span>
         </button>
         <button className={`hbtn ${showMem ? 'on' : ''}`} title="장기기억 관리" onClick={() => { setShowMem(v => { if (!v) loadMemories(); return !v }) }}>
           🧠 <span className="btn-label">기억</span>

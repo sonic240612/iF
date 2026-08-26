@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 
 export default function Home({ characters, onPick, onCreate, user, onLogout }) {
   const [genre, setGenre] = useState('전체')
+  const [q, setQ] = useState('')
   const safeList = Array.isArray(characters) ? characters : []
 
   // 장르 필터: 전체 / 커스텀(유저 제작) / 캐릭터들이 실제 사용하는 장르 동적 수집
@@ -15,6 +16,14 @@ export default function Home({ characters, onPick, onCreate, user, onLogout }) {
   else if (genre === '커스텀') list = safeList.filter(c => (c.tags || []).includes('커스텀'))
   else list = safeList.filter(c => c.genre === genre)
 
+  const needle = q.trim().toLowerCase()
+  if (needle) {
+    list = list.filter(c =>
+      c.name.toLowerCase().includes(needle) ||
+      (c.tags || []).some(t => t.toLowerCase().includes(needle)) ||
+      (c.genre || '').toLowerCase().includes(needle))
+  }
+
   return (
     <div className="home">
       <header className="hero">
@@ -26,6 +35,12 @@ export default function Home({ characters, onPick, onCreate, user, onLogout }) {
         <p>차원의 틈 너머, 당신이 서사의 주체가 되는 곳.<br />
           캐릭터를 선택하고 이야기를 시작하세요.</p>
       </header>
+
+      <div className="search-wrap">
+        <span className="search-icon">🔍</span>
+        <input className="search-input" value={q} onChange={e => setQ(e.target.value)}
+          placeholder="캐릭터 이름·태그·장르로 검색…" />
+      </div>
 
       <nav className="genre-nav">
         {genres.map(g => (

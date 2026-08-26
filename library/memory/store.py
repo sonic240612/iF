@@ -24,6 +24,7 @@ DB_PATH = ROOT / "data" / "memory.db"
 SUMMARY_INTERVAL = 10   # N 어시스턴트 턴마다 요약 기억 생성
 TOP_K = 3               # 매 턴 주입할 기억 개수
 MEM_KEY_PREFIX = "if:mem:"
+EMO_KEY_PREFIX = "if:emo:"          # 감정 변화 히스토리
 HIST_KEY_PREFIX = "if:hist:"
 MAX_MEMORIES = 200      # 세션당 유지할 기억 상한
 
@@ -290,6 +291,73 @@ def delete_memory(session_id: str, memory_id: str) -> bool:
             return cur.rowcount > 0
     except (ValueError, sqlite3.Error):
         return False
+
+
+# ── 감정 변화 히스토리 (감정 그래프용) ──
+
+def record_emotion(session_id: str, turn: int, state_dict: dict) -> None:
+    """턴마다 감정 스냅샷을 기록. Redis 우선, 없으면 SQLite."""
+    snap = {k: state_dict.get(k, 0) for k in ("affection", "obsession", "enmity", "jealousy")}
+    r = _redis()
+    if r:
+        try:
+            key = EMO_KEY_PREFIX + session_id
+            pipe = r.pipeline()
+            entry = {**snap, "turn": turn}
+            pipe.rpush(key, json.dumps(entry, ensure_ascii=False))
+            pipe.ltrim(key, -100, -1)
+            pipe.expire(key, 60 * 60 * 24 * 90)
+            pipe.execute()
+        except Exception as e:
+            print(f"[memory] 감정 기록 실패: {e}")
+            return
+    if not _sqlite_ok():
+        return
+    try:
+        with _conn() as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS emotion_history ("
+                "session_id TEXT, turn INTEGER, affection REAL, obsession REAL,"
+                "enmity REAL, jealousy REAL, created_at REAL)"
+            )
+            conn.execute(
+                "INSERT INTO emotion_history VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (session_id, turn, snap["affection"], snap["obsession"],
+                 snap["enmity"], snap["jealousy"], time.time()),
+            )
+    except Exception as e:
+        print(f"[memory] 감정 기록(SQLite) 실패: {e}")
+
+
+def get_emotion_history(session_id: str, limit: int = 50) -> list[dict]:
+    """감정 변화 히스토리 반환 (turn 순 오름차순)."""
+    r = _redis()
+    if r:
+        try:
+            entries = r.lrange(EMO_KEY_PREFIX + session_id, -limit, -1)
+            out = []
+            for e in entries:
+                d = json.loads(e)
+                d.setdefault("affection", 0)
+                for k in ("affection", "obsession", "enmity", "jealousy", "turn"):
+                    d[k] = float(d.get(k, 0))
+                out.append(d)
+            return out
+        except Exception as e:
+            print(f"[memory] Redis 감정 조회 실패: {e}")
+    if not _sqlite_ok():
+        return []
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT turn, affection, obsession, enmity, jealousy FROM emotion_history "
+                "WHERE session_id = ? ORDER BY turn ASC LIMIT ?",
+                (session_id, limit),
+            ).fetchall()
+        keys = ["turn", "affection", "obsession", "enmity", "jealousy"]
+        return [dict(zip(keys, row)) for row in rows]
+    except Exception:
+        return []
 
 
 def count_memories(session_id: str | None = None) -> int:

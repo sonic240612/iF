@@ -15,3 +15,11 @@ messages_per_minute = 30
 
 [freemium]
 daily_credits = 50
+
+[cors]
+# 허용할 오리진 목록 (운영 도메인 + 로컬 개발 환경)
+allowed_origins = [
+  "https://if-chat-plum.vercel.app",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+]

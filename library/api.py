@@ -30,9 +30,13 @@ with open(ROOT / "configs" / "base.toml", "rb") as f:
     CONFIG = tomllib.load(f)
 
 app = FastAPI(title="iF API", version="0.1.0")
+_ALLOWED_ORIGINS = CONFIG.get("cors", {}).get(
+    "allowed_origins",
+    ["https://if-chat-plum.vercel.app", "http://localhost:5173"],
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -275,6 +279,13 @@ class UserPatchRequest(BaseModel):
     patch: str = Field(default="", max_length=1000)
 
 
+@app.get("/sessions/{session_id}/emotions")
+def get_emotions(session_id: str, user: str = Depends(current_user)) -> dict:
+    """감정 변화 히스토리 (그래프용)."""
+    skey = session_key(user, session_id)
+    return {"history": memory_store.get_emotion_history(skey)}
+
+
 @app.get("/sessions/{session_id}/user-patch")
 def get_user_patch(session_id: str, user: str = Depends(current_user)) -> dict:
     skey = session_key(user, session_id)
@@ -314,6 +325,9 @@ def _prepare_chat(req: ChatRequest, user: str):
     intent_result = classifier.classify(req.effective_message())
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
     state = fsm.commit(skey, intent_result.delta, decay=decay)
+    memory_store.record_emotion(skey, state.turn,
+        {"affection": state.affection, "obsession": state.obsession,
+         "enmity": state.enmity, "jealousy": state.jealousy})
     memories = memory_store.search_memories(skey, req.effective_message())
     # 세션 시작 시 초기 설정 스냅샷 (이미 있으면 기존 값 유지)
     meta = session_meta.init_if_absent(skey, character.get("initial_setup", ""))
@@ -410,6 +424,10 @@ def chat(req: ChatRequest, user: str = Depends(current_user)) -> ChatResponse:
     # 2) FSM 상태 갱신 — 반드시 생성 이전에 결정적으로 커밋
     decay = CONFIG["fsm"].get("decay_per_turn", 0.0)
     state = fsm.commit(skey, intent_result.delta, decay=decay)
+    # 감정 변화 기록 (그래프용)
+    memory_store.record_emotion(skey, state.turn,
+        {"affection": state.affection, "obsession": state.obsession,
+         "enmity": state.enmity, "jealousy": state.jealousy})
 
     # 2.5) 장기기억 검색(RAG) — 생성 이전에 프롬프트에 주입
     memories = memory_store.search_memories(skey, req.effective_message())

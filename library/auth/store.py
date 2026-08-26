@@ -1,8 +1,10 @@
 """간이 인증 저장소 — 닉네임 + 비밀번호 (외부 의존성 없음).
 
-- 비밀번호: PBKDF2-HMAC-SHA256 (솔트 개별 부여)
-- 사용자/토큰: REDIS_URL 있으면 Redis 영속화, 없으면 프로세스 메모리
-- 닉네임은 소문자 기준으로 중복 검사 (대소문자 무시)
+토큰 관리 정책:
+- 로그인할 때마다 새 토큰 발급
+- 유저별로 최대 MAX_CONCURRENT_TOKENS(3개)까지 동시 보유 가능
+- 새 토큰 발급 시 가장 오래된 것부터 초과분을 자동 삭제 (Redis 키도 함께 제거)
+- 각 토큰은 30일 후 자동 만료 (TTL)
 """
 from __future__ import annotations
 
@@ -16,9 +18,11 @@ _rc = None
 _mem_users: dict[str, dict] = {}
 _mem_tokens: dict[str, dict] = {}
 
-TOKEN_TTL = 60 * 60 * 24 * 30  # 30일
+TOKEN_TTL = 60 * 60 * 24 * 30          # 토큰 유효기간 30일
 USER_KEY_PREFIX = "if:user:"
 TOKEN_KEY_PREFIX = "if:token:"
+UTOKEN_SET_PREFIX = "if:utokens:"      # 유저별 발급 토큰 목록 (sorted set)
+MAX_CONCURRENT_TOKENS = 3              # 동시 보유 가능 토큰 수
 
 
 class NicknameTakenError(Exception):
@@ -71,20 +75,20 @@ def validate(nickname: str, password: str) -> None:
 
 
 def create_user(nickname: str, password: str) -> str:
-    """계정 생성 후 즉시 로그인용 토큰 반환."""
+    """계정 생성 + 즉시 로그인(토큰 발급)."""
     key = _norm(nickname)
     validate(key, password)
     r = _redis()
 
-    if r and r.exists(USER_KEY_PREFIX + key):
-        raise NicknameTakenError("이미 사용 중인 닉네임입니다.")
-    if not r and key in _mem_users:
+    exists = (r.exists(USER_KEY_PREFIX + key)) if r else (key in _mem_users)
+    if exists:
         raise NicknameTakenError("이미 사용 중인 닉네임입니다.")
 
     record = {
         "display": nickname.strip(),
         "salt": secrets.token_hex(16),
         "created": time.time(),
+        "pw": _hash_pw(password, secrets.token_hex(16)),
     }
     record["pw"] = _hash_pw(password, record["salt"])
 
@@ -93,7 +97,7 @@ def create_user(nickname: str, password: str) -> str:
     else:
         _mem_users[key] = record
 
-    return _issue_token(record["display"])
+    return issue_token(record["display"], key)
 
 
 def login(nickname: str, password: str) -> str:
@@ -110,17 +114,36 @@ def login(nickname: str, password: str) -> str:
     rec = json.loads(raw)
     if _hash_pw(password, rec["salt"]) != rec["pw"]:
         raise InvalidCredentialsError("비밀번호가 올바르지 않습니다.")
-    return _issue_token(rec["display"])
+    return issue_token(rec["display"], key)
 
 
-def _issue_token(display_name: str) -> str:
+def issue_token(display_name: str, nickname_key: str | None = None) -> str:
+    """새 토큰 발급 + 유저별 목록 추적 + 초과분 자동 삭제."""
+    key = nickname_key or _norm(display_name)
     token = secrets.token_urlsafe(32)
     payload = json.dumps({"user": display_name, "exp": time.time() + TOKEN_TTL})
     r = _redis()
+
     if r:
-        r.set(TOKEN_KEY_PREFIX + token, payload, ex=TOKEN_TTL)
+        pipe = r.pipeline()
+        pipe.set(TOKEN_KEY_PREFIX + token, payload, ex=TOKEN_TTL)
+        tset = UTOKEN_SET_PREFIX + key
+        pipe.zadd(tset, {token: time.time()})
+        pipe.expire(tset, TOKEN_TTL)
+        pipe.execute()
+
+        # 최대 개수 초과 시 가장 오래된 토큰부터 삭제
+        members = r.zrange(tset, 0, -(MAX_CONCURRENT_TOKENS + 1))
+        for old in members:
+            r.delete(TOKEN_KEY_PREFIX + old)
+            r.zrem(tset, old)
     else:
-        _mem_tokens[token] = {"payload": payload, "exp": time.time() + TOKEN_TTL}
+        # 메모리 모드
+        prev = [t for t, info in _mem_tokens.items() if info.get("nkey") == key]
+        if len(prev) >= MAX_CONCURRENT_TOKENS:
+            del _mem_tokens[prev[0]]
+        _mem_tokens[token] = {"user": display_name, "exp": time.time() + TOKEN_TTL, "nkey": key}
+
     return token
 
 
@@ -134,18 +157,20 @@ def user_for_token(token: str) -> str | None:
         raw = r.get(TOKEN_KEY_PREFIX + token)
     elif token in _mem_tokens:
         entry = _mem_tokens[token]
-        if entry["exp"] > time.time():
-            raw = entry["payload"]
-        else:
-            _mem_tokens.pop(token, None)
+        if entry.get("exp", 0) > time.time():
+            return entry.get("user")
+        _mem_tokens.pop(token, None)
     if not raw:
         return None
     try:
         payload = json.loads(raw)
     except Exception:
         return None
-    if isinstance(payload, dict) and payload.get("user"):
-        return payload["user"]
+    if isinstance(payload, dict):
+        exp = payload.get("exp", 0)
+        if exp and exp < time.time():
+            return None
+        return payload.get("user")
     return None
 
 
