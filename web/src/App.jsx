@@ -34,6 +34,7 @@ export default function App() {
   })
 
   const selected = characters.find(c => c.id === selectedId) || null
+  const isGuest = (authUser || '').startsWith('guest_')
 
   function pick(id) {
     setSelectedId(id)
@@ -97,9 +98,10 @@ export default function App() {
     <Home
       characters={characters}
       user={authUser}
+      isGuest={isGuest}
       onLogout={logout}
       onPick={pick}
-      onCreate={() => { setView('create'); window.scrollTo(0, 0) }}
+      onCreate={isGuest ? undefined : () => { setView('create'); window.scrollTo(0, 0) }}
     />
   )
 }

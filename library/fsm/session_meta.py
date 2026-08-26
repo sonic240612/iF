@@ -11,6 +11,8 @@ import json
 import os
 import time
 
+from ..guest import GUEST_TTL_SECONDS, is_guest
+
 _rc = None
 _mem: dict[str, dict] = {}
 
@@ -49,7 +51,10 @@ def _save(session_id: str, data: dict) -> None:
     data["updated_at"] = time.time()
     r = _redis()
     if r:
-        r.set(_key(session_id), json.dumps(data, ensure_ascii=False))
+        key = _key(session_id)
+        r.set(key, json.dumps(data, ensure_ascii=False))
+        if is_guest(session_id):
+            r.expire(key, GUEST_TTL_SECONDS)
     else:
         _mem[session_id] = data
 

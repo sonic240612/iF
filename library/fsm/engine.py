@@ -10,6 +10,8 @@ import os
 import time
 from dataclasses import dataclass, field, asdict
 
+from ..guest import GUEST_TTL_SECONDS, is_guest
+
 BOUNDS = (0.0, 100.0)
 DIMENSIONS = ("affection", "obsession", "enmity", "jealousy")
 
@@ -93,7 +95,10 @@ class FSMEngine:
     def _persist(self, session_id: str, state: EmotionState) -> None:
         if self._redis:
             try:
-                self._redis.set(self.PREFIX + session_id, json.dumps(state.to_dict()))
+                key = self.PREFIX + session_id
+                self._redis.set(key, json.dumps(state.to_dict()))
+                if is_guest(session_id):
+                    self._redis.expire(key, GUEST_TTL_SECONDS)
             except Exception as e:
                 print(f"[FSM] Redis 저장 실패(메모리만 유지): {e}")
 

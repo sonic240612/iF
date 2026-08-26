@@ -14,6 +14,8 @@ import os
 import secrets
 import time
 
+from ..guest import GUEST_TTL_SECONDS, new_guest_nickname
+
 _rc = None
 _mem_users: dict[str, dict] = {}
 _mem_tokens: dict[str, dict] = {}
@@ -66,6 +68,8 @@ def _hash_pw(password: str, salt_hex: str) -> str:
 
 def validate(nickname: str, password: str) -> None:
     n = _norm(nickname)
+    if n.startswith("guest_"):
+        raise ValidationError("사용할 수 없는 닉네임입니다.")
     if len(n) < 2 or len(n) > 20:
         raise ValidationError("닉네임은 2~20자로 입력해주세요.")
     if not all(ch.isalnum() or ch in "_가-힣" for ch in n):
@@ -144,6 +148,19 @@ def issue_token(display_name: str, nickname_key: str | None = None) -> str:
             del _mem_tokens[prev[0]]
         _mem_tokens[token] = {"user": display_name, "exp": time.time() + TOKEN_TTL, "nkey": key}
 
+    return token
+
+
+def create_guest_token() -> str:
+    """게스트 토큰 발급 — 계정 생성 없이 24시간 유효."""
+    nickname = new_guest_nickname()
+    token = secrets.token_urlsafe(32)
+    payload = json.dumps({"user": nickname, "exp": time.time() + GUEST_TTL_SECONDS})
+    r = _redis()
+    if r:
+        r.set(TOKEN_KEY_PREFIX + token, payload, ex=GUEST_TTL_SECONDS)
+    else:
+        _mem_tokens[token] = {"user": nickname, "exp": time.time() + GUEST_TTL_SECONDS}
     return token
 
 

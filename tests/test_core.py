@@ -165,6 +165,46 @@ def test_official_card_not_editable(api):
     r = api.put("/characters/char_alice_01", json={"name": "바꾸기 시도"})
     assert r.status_code == 403
 
+# ── 게스트 모드 ──
+def test_guest_login_and_access(api):
+    """게스트 토큰 발급 + 인증된 엔드포인트 접근 가능"""
+    r = api.post("/auth/guest")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["nickname"].startswith("guest_")
+    g = TestClient(app)
+    h = {"Authorization": f"Bearer {data['token']}"}
+    assert g.get("/characters", headers=h).status_code == 200
+    # 게스트 세션 키로 패치 저장도 정상 (채팅 흐름의 일부)
+    r = g.put(f"/sessions/{data['nickname']}:char_alice_01/user-patch",
+              json={"patch": "짧게 말해줘"}, headers=h)
+    assert r.status_code == 200
+
+def test_guest_cannot_manage_characters(api):
+    """게스트는 캐릭터 생성/수정/삭제 불가 → 403"""
+    tok = api.post("/auth/guest").json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    r = api.post("/characters", headers=h, json={
+        "id": "char_guest_test", "name": "게스트캐",
+        "system_prompt": "test prompt here", "first_message": "hi", "tags": ["t"]})
+    assert r.status_code == 403
+    assert api.put("/characters/char_alice_01", json={"name": "x"}, headers=h).status_code == 403
+    assert api.delete("/characters/char_alice_01", headers=h).status_code == 403
+
+def test_register_rejects_guest_prefix(api):
+    """guest_ 접두 닉네임은 일반 계정 가입 불가 (게스트 TTL 정책 오용 방지)"""
+    r = api.post("/auth/register",
+                 json={"nickname": "guest_abcd1234", "password": "secret123"})
+    assert r.status_code == 422
+
+def test_guest_ttl_policy():
+    """게스트 세션은 24h TTL, 일반 유저는 기본값 유지"""
+    from library import guest
+    assert guest.ttl_for("sonic:char_nana_01", 3600) == 3600
+    assert guest.ttl_for("guest_abcd1234:char_nana_01", 3600) == 86400
+    assert guest.is_guest("guest_abcd1234") is True
+    assert guest.is_guest("sonic:char_nana_01") is False
+
 
 def test_extract_json_plain():
     data = _extract_json('{"first_message": "안녕", "tags": ["a"]}')

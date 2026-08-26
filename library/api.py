@@ -24,6 +24,7 @@ from library.fsm.engine import engine as fsm
 from library.inference import gemma_client, narrative
 from library.inference.prompt_compiler import compile_prompt
 from library.memory import store as memory_store
+from library.guest import is_guest
 
 ROOT = Path(__file__).resolve().parents[1]
 with open(ROOT / "configs" / "base.toml", "rb") as f:
@@ -161,6 +162,13 @@ def login(req: AuthRequest) -> dict:
     return {"token": token, "nickname": req.nickname.strip()}
 
 
+@app.post("/auth/guest")
+def guest_login() -> dict:
+    """게스트 모드 — 계정 없이 시작, 대화 기록은 24시간 후 자동 소멸."""
+    token = auth_store.create_guest_token()
+    return {"token": token, "nickname": auth_store.user_for_token(token)}
+
+
 @app.post("/auth/logout")
 def logout(request: Request, user: str = Depends(current_user)) -> dict:
     auth_store.revoke_token(_bearer_token(request))
@@ -193,6 +201,8 @@ def character_detail(character_id: str) -> dict:
 
 @app.post("/characters")
 def create_character(req: CharacterCardRequest, user: str = Depends(current_user)) -> dict:
+    if is_guest(user):
+        raise HTTPException(status_code=403, detail="게스트는 캐릭터를 만들 수 없습니다.")
     try:
         return builder.save_card(req.model_dump(), creator=user)
     except builder.ValidationError as e:
@@ -207,6 +217,8 @@ class AssistRequest(BaseModel):
 @app.post("/characters/assist")
 def ai_assist_character(req: AssistRequest, user: str = Depends(current_user)) -> dict:
     """시스템 프롬프트만으로 나머지 필드를 AI가 자동 생성"""
+    if is_guest(user):
+        raise HTTPException(status_code=403, detail="게스트는 캐릭터를 만들 수 없습니다.")
     try:
         return creator_assist.generate_card(req.system_prompt, req.name, creator=user)
     except creator_assist.AssistError as e:
@@ -218,6 +230,8 @@ def ai_assist_character(req: AssistRequest, user: str = Depends(current_user)) -
 @app.delete("/characters/{character_id}")
 def delete_character(character_id: str, user: str = Depends(current_user)) -> dict:
     """캐릭터 카드 삭제."""
+    if is_guest(user):
+        raise HTTPException(status_code=403, detail="게스트는 캐릭터를 삭제할 수 없습니다.")
     if builder.load_character(character_id) is None:
         raise HTTPException(status_code=404, detail=f"character not found: {character_id}")
     builder.delete_card(character_id)
@@ -242,6 +256,8 @@ class EditCharacterRequest(BaseModel):
 @app.put("/characters/{character_id}")
 def edit_character(character_id: str, req: EditCharacterRequest, user: str = Depends(current_user)) -> dict:
     """캐릭터 카드 부분 수정 — 제작자 본인만 가능."""
+    if is_guest(user):
+        raise HTTPException(status_code=403, detail="게스트는 캐릭터를 수정할 수 없습니다.")
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
     try:
         return builder.update_card(character_id, updates, user=user)

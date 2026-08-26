@@ -8,6 +8,7 @@ export default function AuthPage({ notice, onAuth }) {
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [busy, setBusy] = useState(false)
+  const [guestBusy, setGuestBusy] = useState(false)
   const [error, setError] = useState('')
 
   async function submit(e) {
@@ -31,6 +32,20 @@ export default function AuthPage({ notice, onAuth }) {
     } catch (err) {
       setError(String(err.message || err))
     } finally { setBusy(false) }
+  }
+
+  async function startGuest() {
+    setError('')
+    setGuestBusy(true)
+    try {
+      const res = await fetch('/api/auth/guest', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || '요청 실패')
+      setAuth(data)
+      onAuth(data.nickname)
+    } catch (err) {
+      setError(String(err.message || err))
+    } finally { setGuestBusy(false) }
   }
 
   return (
@@ -93,14 +108,20 @@ export default function AuthPage({ notice, onAuth }) {
 
           {error && <p className="auth-error">⚠️ {error}</p>}
 
-          <button type="submit" className={`auth-submit ${mode}`} disabled={busy}>
+          <button type="submit" className={`auth-submit ${mode}`} disabled={busy || guestBusy}>
             {busy ? <><i className="spin" /> 처리 중…</> : mode === 'login' ? '로그인' : '가입하고 시작하기'}
           </button>
         </form>
 
+        <div className="auth-divider"><span>또는</span></div>
+
+        <button type="button" className="auth-guest" onClick={startGuest} disabled={guestBusy || busy}>
+          {guestBusy ? '처리 중…' : '👤 게스트로 시작하기'}
+        </button>
+
         <p className="auth-note">
-          닉네임과 비밀번호만으로 간단하게 가입할 수 있어요.<br />
-          같은 계정이면 어느 기기에서든 대화가 이어집니다.
+          게스트는 로그인 없이 바로 채팅할 수 있어요.<br />
+          게스트 대화 기록은 마지막 활동 24시간 후 자동 삭제됩니다.
         </p>
       </div>
     </div>

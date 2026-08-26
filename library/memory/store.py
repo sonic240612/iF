@@ -18,6 +18,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+from .. import guest
+
 ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = ROOT / "data" / "memory.db"
 
@@ -177,7 +179,7 @@ def save_memory(session_id: str, turn: int, text: str) -> bool:
             pipe = r.pipeline()
             pipe.rpush(MEM_KEY_PREFIX + session_id, entry)
             pipe.ltrim(MEM_KEY_PREFIX + session_id, -MAX_MEMORIES, -1)
-            pipe.expire(MEM_KEY_PREFIX + session_id, 60 * 60 * 24 * 30)  # 30일
+            pipe.expire(MEM_KEY_PREFIX + session_id, guest.ttl_for(session_id, 60 * 60 * 24 * 30))
             pipe.execute()
             return True
         except Exception as e:
@@ -276,6 +278,7 @@ def delete_memory(session_id: str, memory_id: str) -> bool:
                 # 원본 순서 유지가 중요하지 않으므로 kept 순서대로 재저장
                 for e in kept:
                     pipe.rpush(key, e)
+                pipe.expire(key, guest.ttl_for(session_id, 60 * 60 * 24 * 30))
                 pipe.execute()
             return removed
         except Exception as e:
@@ -306,7 +309,7 @@ def record_emotion(session_id: str, turn: int, state_dict: dict) -> None:
             entry = {**snap, "turn": turn}
             pipe.rpush(key, json.dumps(entry, ensure_ascii=False))
             pipe.ltrim(key, -100, -1)
-            pipe.expire(key, 60 * 60 * 24 * 90)
+            pipe.expire(key, guest.ttl_for(session_id, 60 * 60 * 24 * 90))
             pipe.execute()
         except Exception as e:
             print(f"[memory] 감정 기록 실패: {e}")
@@ -401,7 +404,11 @@ def load_history(session_id: str) -> list[dict]:
 def save_history(session_id: str, history: list[dict]) -> None:
     if _redis():
         try:
-            _redis().set(HIST_KEY_PREFIX + session_id, json.dumps(history, ensure_ascii=False))
+            key = HIST_KEY_PREFIX + session_id
+            r = _redis()
+            r.set(key, json.dumps(history, ensure_ascii=False))
+            if guest.is_guest(session_id):
+                r.expire(key, guest.GUEST_TTL_SECONDS)
         except Exception as e:
             print(f"[memory] Redis 히스토리 저장 실패: {e}")
     if not _sqlite_ok():

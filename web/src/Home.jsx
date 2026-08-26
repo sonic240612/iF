@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function Home({ characters, onPick, onCreate, user, onLogout }) {
+export default function Home({ characters, onPick, onCreate, user, isGuest, onLogout }) {
   const [genre, setGenre] = useState('전체')
   const [q, setQ] = useState('')
   const safeList = Array.isArray(characters) ? characters : []
@@ -28,6 +28,7 @@ export default function Home({ characters, onPick, onCreate, user, onLogout }) {
     <div className="home">
       <header className="hero">
         <div className="user-chip">
+          {isGuest && <span className="guest-pill" title="게스트 대화 기록은 마지막 활동 24시간 후 자동 삭제됩니다">👤 게스트 · 24h</span>}
           <span>👤 <b>{user}</b>님</span>
           <button onClick={onLogout}>로그아웃</button>
         </div>
@@ -53,11 +54,13 @@ export default function Home({ characters, onPick, onCreate, user, onLogout }) {
       </nav>
 
       <main className="card-grid">
-        <button className="char-card create-card-mini" onClick={onCreate}>
-          <span className="cc-plus">＋</span>
-          <strong>캐릭터 만들기</strong>
-          <p>직접 설계하거나 AI 어시스트로 30초 완성</p>
-        </button>
+        {onCreate && (
+          <button className="char-card create-card-mini" onClick={onCreate}>
+            <span className="cc-plus">＋</span>
+            <strong>캐릭터 만들기</strong>
+            <p>직접 설계하거나 AI 어시스트로 30초 완성</p>
+          </button>
+        )}
         {list.length === 0 && <p className="empty">해당 장르의 캐릭터가 없습니다.</p>}
         {list.map(c => (
           <button
