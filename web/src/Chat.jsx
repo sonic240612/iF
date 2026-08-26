@@ -326,6 +326,24 @@ export default function Chat({ character, onExit }) {
         </div>
       )}
 
+      {showMem && (
+        <div className="patch-panel">
+          <div className="patch-head">
+            <strong>🧠 장기기억 관리</strong>
+            <span>AI가 요약해 저장한 기억들입니다. 삭제하면 더 이상 참조하지 않아요.</span>
+          </div>
+          {memList.length === 0 && (
+            <div className="mem-empty">아직 저장된 기억이 없습니다. (10턴마다 자동 생성)</div>
+          )}
+          {memList.map(m => (
+            <div key={m.id} className="mem-item">
+              <span className="mem-text">{m.text}</span>
+              <button className="mem-del" title="기억 삭제" onClick={() => delMemory(m.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {showPatch && (
         <div className="patch-panel">
           <div className="patch-head">
