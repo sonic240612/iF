@@ -296,7 +296,7 @@ export default function Chat({ character, onExit }) {
         <button className={`hbtn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
           📝 <span className="btn-label">유저 패치</span>
         </button>
-        <button className={`hbtn ${showGraph ? 'on' : ''}`} title="감정 변화 그래프" onClick={() => setShowGraph(v => !v)}>
+        <button className={`hbtn ${showGraph ? 'on' : ''}`} title="감정 변화 그래프" onClick={() => { setShowGraph(v => { if (!v) loadEmotions(); return !v }) }}>
           📊 <span className="btn-label">감정</span>
         </button>
         <button className={`hbtn ${showMem ? 'on' : ''}`} title="장기기억 관리" onClick={() => { setShowMem(v => { if (!v) loadMemories(); return !v }) }}>
