@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 
 export default function CharacterDetail({ character, user, onBack, onStart, onEdit, onDelete }) {
+  const [confirmDel, setConfirmDel] = useState(false)
   return (
     <div className="detail">
       <button className="back-btn" onClick={onBack}>← 목록</button>
