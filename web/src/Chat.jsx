@@ -447,7 +447,7 @@ export default function Chat({ character, onExit }) {
           {showModelSel && (
             <div className="model-popup">
               <strong>모델 선택</strong>
-              {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4', desc:''}]).map(m => {
+              {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4'}]).map(m => {
                 const sel = selectedModel.key === m.key
                 return (
                 <button key={m.key} className={`model-opt ${sel ? 'sel' : ''}`}
@@ -455,11 +455,8 @@ export default function Chat({ character, onExit }) {
                     setSelectedModel({ key: m.key, label: m.label })
                     setShowModelSel(false)
                   }}>
-                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7', color: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7' }} />
-                  <span className="model-name">
-                    <span className="model-label">{m.label}</span>
-                    <span className="model-desc">{m.desc || ''}</span>
-                  </span>
+                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7' }} />
+                  <span className="model-label">{m.label}</span>
                   {sel && (
                     <span className="check-icon">
                       <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
@@ -468,7 +465,7 @@ export default function Chat({ character, onExit }) {
                 </button>
                 )
               })}
-              <p className="model-note">💡 모델말투·속도·품질이 달라집니다.</p>
+              <p className="model-note">모델말투·속도가 달라집니다.</p>
             </div>
           )}
         </div>
