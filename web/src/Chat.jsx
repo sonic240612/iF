@@ -59,8 +59,8 @@ export default function Chat({ character, onExit }) {
   const [showModelSel, setShowModelSel] = useState(false)
   // 선택한 모델을 localStorage에 저장 → 모든 캐릭터에서 유지
   const [selectedModel, setSelectedModel] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('if_model') || 'null') || { key: '', label: 'Gemma 4' } }
-    catch { return { key: '', label: 'Gemma 4' } }
+    try { return JSON.parse(localStorage.getItem('if_model') || 'null') || { key: 'gemma4', label: 'Gemma 4' } }
+    catch { return { key: 'gemma4', label: 'Gemma 4' } }
   })
   const [showGraph, setShowGraph] = useState(false)
   const [emoData, setEmoData] = useState(null)
@@ -442,7 +442,7 @@ export default function Chat({ character, onExit }) {
       <footer className="composer">
         <div style={{ position: 'relative' }}>
           <button onClick={() => {
-            try { setSelectedModel(JSON.parse(localStorage.getItem('if_model') || 'null') || { key: '', label: 'Gemma 4' }) } catch {}
+            try { setSelectedModel(JSON.parse(localStorage.getItem('if_model') || 'null') || { key: 'gemma4', label: 'Gemma 4' }) } catch {}
             setShowModelSel(v => !v)
           }} style={{
             width: 44, height: 48, borderRadius: 12,

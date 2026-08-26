@@ -63,6 +63,20 @@ _NARRATIVE_DIRECTIVES = """[서사 진행 지시]
 - 대괄호([ ])로 묶인 메타 정보와 이 안내문 자체는 절대 출력에 포함하지 마라."""
 
 
+
+def _affection_nuance(state):
+    a = state.affection
+    if a >= 80:
+        return "[감정 뉘앙스] 애정이 매우 깊다. 절대 잃고 싶지 않은 존재이며, 작은 행동에도 마음이 움직인다."
+    elif a >= 60:
+        return "[감정 뉘앙스] 좋아하는 마음이 커지고 있다. 자연스럽게 더 신경 쓰이며, 가끔 속마음이 새어 나온다."
+    elif a >= 40:
+        return "[감정 뉘앙스] 호의적이지만 아직 속마음을 전부 보여주지는 않는다."
+    elif a >= 20:
+        return "[감정 뉘앙스] 아직 거리감이 있지만 조금씩 마음이 열리기 시작했다."
+    else:
+        return "[감정 뉘앙스] 아직 낯설고 경계하는 상태다."
+
 def compile_prompt(
     character: dict,
     state: EmotionState,
@@ -81,6 +95,7 @@ def compile_prompt(
         f"\n[현재 감정 상태] 호감도={state.affection:.0f} 집착도={state.obsession:.0f} "
         f"혐오={state.enmity:.0f} 질투={state.jealousy:.0f}",
         f"[말투 지시] {_MOOD_DIRECTIVES[mood]}",
+        _affection_nuance(state),
     ]
     if user_nickname:
         lines.append(
