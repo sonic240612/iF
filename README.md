@@ -14,7 +14,7 @@ pinned: false
 
 **🔗 라이브 데모: https://if-chat-plum.vercel.app**
 
-iF는 단순한 1회성 AI 챗봇을 넘어, **캐릭터의 살아있는 감정 변화**와 **유저 주도형 분기 내러티브**를 결합한 하이브리드 스토리텔링 플랫폼입니다. Gemma-4 LLM 위에 FSM 기반 감정 엔진과 RAG 장기기억을 얹어, 대화할수록 관계가 깊어지는 캐릭터를 만듭니다.
+iF는 단순한 1회성 AI 챗봇을 넘어, **캐릭터의 살아있는 감정 변화**와 **유저 주도형 분기 내러티브**를 결합한 하이브리드 스토리텔링 플랫폼입니다. Gemma 4 / Gemini 3.5 Flash Lite LLM 위에 FSM 기반 감정 엔진과 RAG 장기기억을 얹어, 대화할수록 관계가 깊어지는 캐릭터를 만듭니다.
 
 ## ✨ 핵심 기능
 
@@ -31,7 +31,15 @@ iF는 단순한 1회성 AI 챗봇을 넘어, **캐릭터의 살아있는 감정 
 ### 📡 SSE 스트리밍 채팅
 응답을 기다리지 않고 생성되는 토큰을 그대로 실시간 출력합니다. 체감 대기시간 없이 캐릭터가 "말하는" 몰입감을 제공합니다.
 
-**대사/묘사 자동 구분**: 대사는 `"큰따옴표"`, 생각·행동·장면 묘사는 `*별표*` 형식으로 표준화되어 있어, 화면에서는 묘사 부분이 흐린 이탤릭으로 자동 표시됩니다. 스트리밍 중에도 동일하게 적용됩니다.
+**대사/묘사 자동 구분**: 대사는 `"큰따옴표"`, 생각·행동·장면 묘사는 `*별표*` 형식으로 표준화되어 있어, 화면에서는 묘사 부분이 흐린 이탤릭으로 자동 표시됩니다. 스트리밍 중에도 동일하게 적용됩니다. 묘사와 대사 사이 줄바꿈 구분은 모델에 관계없이 프롬프트 출력 규칙에서 강제합니다.
+
+### 🔀 듀얼 모델 지원
+채팅 화면의 모델 선택기로 두 LLM을 실시간 전환할 수 있습니다(선택은 브라우저에 자동 저장되어 재방문 시 유지됨).
+
+| 모델 | 특징 |
+|---|---|
+| **Gemma 4** (`gemma-4-26b-a4b-it`) | 풍부한 서사·묘사, 몰입감 우선 |
+| **Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) | 빠른 응답(첫 토큰 ~2초), 가벼운 대화에 적합 |
 
 ### 🧠 RAG 장기기억
 10턴마다 대화가 요약되어 장기기억으로 저장되고, 매 턴 현재 발화와 관련된 과거 기억을 검색해 프롬프트에 자동 주입합니다. *"지난주에 바다 여행 가자고 했잖아"* — 캐릭터가 약속을 기억합니다.
@@ -91,7 +99,7 @@ python -m library.inference.key_cli list / add / remove   # 키 관리 CLI
     ├─ 세션 메타          초기 설정 스냅샷 · 유저 패치
     ├─ RAG 장기기억       임베딩 벡터 검색 (SQLite·Redis)
     ├─ 프롬프트 컴파일러   감정+기억+초기설정+패치+서사지시 주입
-[AI Inference] Gemma-4-26b-a4b-it (Gemini API)
+[AI Inference] Gemma 4 · Gemini 3.5 Flash Lite (사용자 선택, Gemini API)
     키 라운드로빈 · 429 쿨다운 · 폴백 재시도
 ```
 
@@ -155,14 +163,17 @@ python -m pytest tests/ -q
 │       ├── builder.py             # 캐릭터 카드 검증/저장/삭제 (커스텀 태그 자동 부여)
 │       └── assist.py              # AI 어시스트 자동완성
 ├── web/src/                       # React SPA
+│   ├── App.jsx                    # 라우팅·토큰 관리 셸
 │   ├── AuthPage.jsx               # 로그인/회원가입 화면
+│   ├── api.js                     # 공용 API 헬퍼 + 토큰 만료(401) 감지
 │   ├── Home.jsx                   # 카드 그리드 (장르·커스텀 필터)
 │   ├── CharacterDetail.jsx        # 줄거리·세계관·예시 대화
-│   ├── Chat.jsx                   # SSE 채팅 + 유저 패치 패널
+│   ├── Chat.jsx                   # SSE 채팅 + 모델 선택 + 유저 패치/기억/감정 패널
+│   ├── EmotionGraph.jsx           # 감정 변화 그래프 (턴별 4차원)
 │   ├── CreateCharacter.jsx        # 직접 만들기 / AI 어시스트
 │   └── EditCharacter.jsx          # 커스텀 캐릭터 수정 (제작자 전용)
 ├── scripts/stress_test.py         # 길이 스트레스 테스트 스크립트
-└── tests/                         # pytest (22개)
+└── tests/                         # pytest (29개)
 ```
 
 ## 🔌 API 요약
@@ -176,19 +187,26 @@ python -m pytest tests/ -q
 | `POST` | `/characters` | 캐릭터 카드 직접 등록 |
 | `POST` | `/characters/assist` | 시스템 프롬프트만으로 AI 캐릭터 생성 |
 | `DELETE` | `/characters/{id}` | 캐릭터 삭제 |
+| `GET` / `PUT` | `/characters/{id}` | 캐릭터 조회/수정 (제작자 전용, 공식 카드 403) |
 | `POST` | `/chat` | 채팅 (일괄 응답) |
-| `POST` | `/chat/stream` | 채팅 (SSE 스트리밍) |
+| `POST` | `/chat/stream` | 채팅 (SSE 스트리밍, `model` 필드로 모델 선택) |
+| `GET` | `/models` | 사용 가능한 모델 목록 |
 | `GET` | `/sessions/{id}/history` | 대화 복원 (+유저 패치) |
-| `DELETE` | `/sessions/{id}` | 대화 초기화 |
+| `DELETE` | `/sessions/{id}` | 대화 초기화 (히스토리 + 장기기억 + 감정 그래프 모두 삭제) |
 | `GET` / `PUT` | `/sessions/{id}/user-patch` | 유저 패치 조회/저장 |
+| `GET` | `/sessions/{id}/emotions` | 감정 히스토리를 반환 (감정 그래프용) |
+| `GET` / `DELETE` | `/sessions/{id}/memories[/{memory_id}]` | 장기기억 목록/개별 삭제 |
+| `GET` | `/sessions/{id}/state` | 현재 FSM 상태 스냅샷 |
+| `GET` | `/health` | 헬스 체크 |
 
 ## 🛣️ 로드맵
 
 - [x] Redis 세션 저장소 (`REDIS_URL` 설정 시 FSM·히스토리·기억·카드 모두 영속화)
 - [x] 임베딩 기반 벡터 검색 (text-embedding-004)
+- [x] 듀얼 모델 지원 (Gemma 4 · Gemini 3.5 Flash Lite, 채팅 화면에서 전환)
 - [ ] Milvus/Pinecone 전환 (대규모 운영용)
 - [ ] React Native 모바일 앱
 
 ---
 
-*Powered by Gemma · FSM Emotion Engine · RAG Long-term Memory*
+*Powered by Gemma 4 · Gemini 3.5 Flash Lite · FSM Emotion Engine · RAG Long-term Memory*
