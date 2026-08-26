@@ -99,6 +99,7 @@ class ChatRequest(BaseModel):
     message: str = Field(default="", max_length=2000)
     session_id: str = ""
     action: str = Field(default="", max_length=300)  # 선택지 행동 (message와 2진 1)
+    model: str = Field(default="")  # 사용할 모델 키 (빈값이면 기본 모델)
 
     def effective_message(self) -> str:
         return (self.action or self.message).strip()
@@ -165,6 +166,12 @@ def logout(request: Request, user: str = Depends(current_user)) -> dict:
     auth_store.revoke_token(_bearer_token(request))
     return {"status": "ok"}
 
+
+
+@app.get("/models")
+def get_models() -> list[dict]:
+    """사용 가능한 모델 목록."""
+    return gemma_client.get_available_models()
 
 
 @app.get("/characters")
@@ -310,7 +317,7 @@ def reset_session(session_id: str, user: str = Depends(current_user)) -> dict:
     return {"status": "reset"}
 
 
-def _prepare_chat(req: ChatRequest, user: str):
+def _prepare_chat(req: ChatRequest, user: str) -> tuple:
     """공통 파이프라인 (생성 이전 단계): 검증→감성분류→FSM 커밋→프롬프트 컴파일.
     불변식: FSM 상태 갱신과 기억 주입은 반드시 토큰 생성 전에 완료."""
     character = builder.load_character(req.character_id)
@@ -371,7 +378,7 @@ def chat_stream(req: ChatRequest, user: str = Depends(current_user)):
         })
         full_text_parts = []
         try:
-            for delta in gemma_client.generate_remote_stream(prompt):
+            for delta in gemma_client.generate_remote_stream(prompt, model_key=req.model or None):
                 full_text_parts.append(delta)
                 if delta:
                     yield _sse({"type": "delta", "text": delta})

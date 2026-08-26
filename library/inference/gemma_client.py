@@ -49,6 +49,33 @@ def get_api_keys() -> list[str]:
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
+
+# ── 사용 가능한 모델 ──
+AVAILABLE_MODELS = {
+    "gemma4": {
+        "id": "gemma-4-26b-a4b-it",
+        "label": "Gemma 4",
+    },
+    "gemini_35_flash_lite": {
+        "id": "gemini-3.5-flash-lite",
+        "label": "Gemini 3.5 Flash Lite",
+    },
+}
+DEFAULT_MODEL_KEY = "gemma4"
+
+
+def get_available_models() -> list[dict]:
+    """프론트엔드용 모델 목록."""
+    return [{"key": k, **v} for k, v in AVAILABLE_MODELS.items()]
+
+
+def resolve_model_id(model_key: str | None) -> str:
+    """모델 키 → 실제 모델 ID. 미등록/빈값이면 기본값 반환."""
+    if model_key and model_key in AVAILABLE_MODELS:
+        return AVAILABLE_MODELS[model_key]["id"]
+    return _CONFIG["model"].get("model", "gemma-4-26b-a4b-it")
+
+
 # 이 에러 코드들이 나오면 다음 키로 폴백 (429는 별도: KeyPool 쿨다운 적용)
 RETRYABLE_STATUS = {408, 500, 502, 503, 504}
 
@@ -172,17 +199,18 @@ def generate_remote(prompt: str) -> str:
     raise AllKeysFailedError(f"모든 API 키 실패: {last_err}")
 
 
-def generate_remote_stream(prompt: str):
+def generate_remote_stream(prompt: str, model_key: str | None = None):
     """SSE 토큰 스트리밍 (OpenAI 호환 stream=true).
 
-    첫 청크 수신 전 오류 시 다음 키로 폴백. 스트리밍 도중 오류는 StopIteration으로 종료.
+    첫 청크 수신 전 오류 시 다음 키로 폴백.
+    model_key가 지정되면 해당 모델로 요청 (기본값: 설정 파일의 모델).
     """
     if not get_keys():
         raise RuntimeError("사용 가능한 API 키가 없습니다")
     base_url = _CONFIG["model"].get(
         "base_url", "https://generativelanguage.googleapis.com/v1beta/openai/"
     )
-    model = _CONFIG["model"].get("model", "gemma-4-26b-a4b-it")
+    model = resolve_model_id(model_key) if model_key else _CONFIG["model"].get("model", "gemma-4-26b-a4b-it")
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],

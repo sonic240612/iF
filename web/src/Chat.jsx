@@ -56,6 +56,8 @@ export default function Chat({ character, onExit }) {
   const [patchSavedAt, setPatchSavedAt] = useState(null)
   const [showMem, setShowMem] = useState(false)
   const [memList, setMemList] = useState([])
+  const [showModelSel, setShowModelSel] = useState(false)
+  const [selectedModel, setSelectedModel] = useState({ key: '', label: 'Gemma 4' })
   const [showGraph, setShowGraph] = useState(false)
   const [emoData, setEmoData] = useState(null)
   const [confirmExport, setConfirmExport] = useState(false)
@@ -119,6 +121,13 @@ export default function Chat({ character, onExit }) {
       setEmoData(data.history || [])
     } catch { setEmoData([]) }
   }
+
+
+  // 사용 가능한 모델 목록 (최초 1회)
+  const [models, setModels] = useState([])
+  useEffect(() => {
+    fetch('/api/models').then(r => r.json()).then(setModels).catch(() => {})
+  }, [])
 
   async function loadMemories() {
     try {
@@ -212,8 +221,8 @@ export default function Chat({ character, onExit }) {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(
           isAction
-            ? { character_id: character.id, action: text }
-            : { character_id: character.id, message: text }
+            ? { character_id: character.id, model: selectedModel.key || undefined, action: text }
+            : { character_id: character.id, model: selectedModel.key || undefined, message: text }
         ),
       })
       if (!res.ok || !res.body) {
@@ -427,6 +436,27 @@ export default function Chat({ character, onExit }) {
       )}
 
       <footer className="composer">
+        <div className="model-sel-wrap">
+          <button className="model-plus-btn" onClick={() => setShowModelSel(v => !v)}
+            title="모델 변경">＋</button>
+          {showModelSel && (
+            <div className="model-popup">
+              <strong>모델 선택</strong>
+              {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4'}]).map(m => (
+                <button key={m.key} className={`model-opt ${selectedModel.key === m.key ? 'sel' : ''}`}
+                  onClick={() => {
+                    setSelectedModel({ key: m.key, label: m.label })
+                    setShowModelSel(false)
+                  }}>
+                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#43e97b' : '#7aa2f7' }} />
+                  {m.label}
+                  {selectedModel.key === m.key && <span className="check">✓</span>}
+                </button>
+              ))}
+              <p className="model-note">모델말투·속도가 달라질 수 있어요.</p>
+            </div>
+          )}
+        </div>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
