@@ -57,7 +57,11 @@ export default function Chat({ character, onExit }) {
   const [showMem, setShowMem] = useState(false)
   const [memList, setMemList] = useState([])
   const [showModelSel, setShowModelSel] = useState(false)
-  const [selectedModel, setSelectedModel] = useState({ key: '', label: 'Gemma 4' })
+  // 선택한 모델을 localStorage에 저장 → 모든 캐릭터에서 유지
+  const [selectedModel, setSelectedModel] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('if_model') || 'null') || { key: '', label: 'Gemma 4' } }
+    catch { return { key: '', label: 'Gemma 4' } }
+  })
   const [showGraph, setShowGraph] = useState(false)
   const [emoData, setEmoData] = useState(null)
   const [confirmExport, setConfirmExport] = useState(false)
