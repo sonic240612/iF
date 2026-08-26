@@ -128,10 +128,11 @@ export default function Chat({ character, onExit }) {
 
 
   // 사용 가능한 모델 목록 (최초 1회)
-  const [models, setModels] = useState([])
-  useEffect(() => {
-    fetch('/api/models').then(r => r.json()).then(setModels).catch(() => {})
-  }, [])
+  // 모델 목록 (하드코딩 — API 실패와 무관하게 항상 표시)
+  const models = [
+    { key: 'gemma4', label: 'Gemma 4' },
+    { key: 'gemini_35_flash_lite', label: 'Gemini 3.5 Flash Lite' },
+  ]
 
   async function loadMemories() {
     try {
