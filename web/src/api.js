@@ -40,6 +40,11 @@ export async function apiJson(url, method = 'GET', body) {
   return data
 }
 
+/** 401 응답이면 세션 만료 처리 (로그아웃 + 로그인 화면 전환). */
+function checkAuthExpired(res) {
+  if (res && res.status === 401) notifyAuthExpired()
+}
+
 /* ── 세션(토큰) 만료 알림 ──
    어디서든 401을 받으면 이 콜백이 호출되고, 앱이 로그인 화면으로 되돌린다. */
 let _onAuthExpired = null
