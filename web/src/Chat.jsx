@@ -441,7 +441,10 @@ export default function Chat({ character, onExit }) {
 
       <footer className="composer">
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowModelSel(v => !v)} style={{
+          <button onClick={() => {
+            try { setSelectedModel(JSON.parse(localStorage.getItem('if_model') || 'null') || { key: '', label: 'Gemma 4' }) } catch {}
+            setShowModelSel(v => !v)
+          }} style={{
             width: 44, height: 48, borderRadius: 12,
             border: '1px solid #3d4557', background: '#1e2330',
             color: '#c6cad6', fontSize: 22, cursor: 'pointer',
