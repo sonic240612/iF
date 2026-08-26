@@ -55,6 +55,7 @@ export default function Chat({ character, onExit }) {
   const [patchSavedAt, setPatchSavedAt] = useState(null)
   const [showMem, setShowMem] = useState(false)
   const [memList, setMemList] = useState([])
+  const [confirmExport, setConfirmExport] = useState(false)
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
 
@@ -132,6 +133,12 @@ export default function Chat({ character, onExit }) {
     setConfirmReset(false)
   }
 
+
+  // 모달 확인 후 실제 다운로드 수행
+  function doExport() {
+    setConfirmExport(false)
+    exportChat()
+  }
 
   // 대화를 보기 좋은 텍스트 파일로 내려받기
   function exportChat() {
@@ -275,13 +282,13 @@ export default function Chat({ character, onExit }) {
             ● {theme.name}{state?.turn > 0 ? ` · ${state.turn}턴` : ''}
           </span>
         </div>
-        <button className={`hbtn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => { setShowPatch(v => !v); setShowMem(false) }}>
+        <button className={`hbtn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
           📝 <span className="btn-label">유저 패치</span>
         </button>
         <button className={`hbtn ${showMem ? 'on' : ''}`} title="장기기억 관리" onClick={() => { setShowMem(v => { if (!v) loadMemories(); return !v }) }}>
           🧠 <span className="btn-label">기억</span>
         </button>
-        <button className={`hbtn export`} title="대화 내보내기" onClick={exportChat}>
+        <button className={`hbtn export`} title="대화를 텍스트 파일로 저장합니다" onClick={() => setConfirmExport(true)}>
           📄 <span className="btn-label">내보내기</span>
         </button>
         <button className="reset-btn" title="대화 기록과 감정·기억을 초기화합니다" onClick={() => setConfirmReset(true)}>
@@ -375,6 +382,19 @@ export default function Chat({ character, onExit }) {
             <div className="modal-actions">
               <button className="btn-cancel" onClick={() => setConfirmReset(false)}>취소</button>
               <button className="btn-danger" onClick={resetChat}>초기화</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmExport && (
+        <div className="modal-overlay" onClick={() => setConfirmExport(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>📄 대화를 내보낼까요?</h3>
+            <p>지금까지의 대화를 텍스트 파일(.txt)로 다운로드합니다.</p>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setConfirmExport(false)}>취소</button>
+              <button className="btn-danger" style={{ background: '#43e97b' }} onClick={doExport}>내보내기</button>
             </div>
           </div>
         </div>
