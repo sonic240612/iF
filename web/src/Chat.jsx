@@ -347,6 +347,18 @@ export default function Chat({ character, onExit }) {
         </div>
       )}
 
+      {showGraph && (
+        <div className="patch-panel">
+          <div className="patch-head">
+            <strong>📊 감정 변화</strong>
+            <span>대화가 진행되며 캐릭터의 감정이 어떻게 변했는지 보여줍니다.</span>
+          </div>
+          {(emoData?.length > 0)
+            ? <EmotionGraph data={emoData} />
+            : <div className="mem-empty">아직 기록된 감정 변화가 없습니다. 대화를 시작해 보세요!</div>}
+        </div>
+      )}
+
       {showMem && (
         <div className="patch-panel">
           <div className="patch-head">
