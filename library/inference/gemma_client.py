@@ -55,10 +55,12 @@ AVAILABLE_MODELS = {
     "gemma4": {
         "id": "gemma-4-26b-a4b-it",
         "label": "Gemma 4",
+        "desc": "풍부한 감정 표현 · 롤플레이 특화",
     },
     "gemini_35_flash_lite": {
         "id": "gemini-3.5-flash-lite",
         "label": "Gemini 3.5 Flash Lite",
+        "desc": "빠른 응답 · 가벼운 대화에 적합",
     },
 }
 DEFAULT_MODEL_KEY = "gemma4"

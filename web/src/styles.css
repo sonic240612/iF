@@ -740,37 +740,201 @@ button { font-family: inherit; }
 }
 
 /* ── 모델 선택 ── */
-.model-sel-wrap { position: relative; display: flex; align-items: center; }
+/* ── 모델 선택 (정교한 디자인) ── */
+.model-sel-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .model-plus-btn {
-  width: 42px; height: 42px; border-radius: 12px;
-  border: 1px solid #2a3040; background: var(--surface);
-  color: var(--accent); font-size: 20px; font-weight: 300;
-  cursor: pointer; transition: all .15s;
-}
-.model-plus-btn:hover { border-color: var(--accent); color: #fff; }
-.model-popup {
-  position: absolute; bottom: calc(100% + 10px); left: 0;
-  min-width: 240px;
-  background: var(--surface);
-  border: 1px solid rgba(255,255,255,.12);
+  width: 44px;
+  height: 48px;
   border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(0,0,0,.5);
-  padding: 14px;
-  z-index: 50;
-  display: flex; flex-direction: column; gap: 4px;
+  border: 1.5px solid rgba(255,255,255,.09);
+  background: linear-gradient(135deg, rgba(122,162,247,.08), rgba(176,96,255,.06));
+  color: var(--accent);
+  font-size: 0; /* 텍스트 대신 SVG 사용 */
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition:
+    border-color .2s ease,
+    box-shadow .25s ease,
+    transform .15s ease,
+    background .2s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.05),
+    0 2px 6px rgba(0,0,0,.15);
 }
-.model-popup > strong { font-size: 13px; margin-bottom: 6px; }
+.model-plus-btn svg {
+  width: 22px; height: 22px;
+  stroke: var(--accent);
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgba(122,162,247,.35));
+  transition: stroke .2s, filter .2s, transform .25s cubic-bezier(.34,1.56,.64,1);
+}
+.model-plus-btn:hover:not(:disabled) {
+  border-color: rgba(122,162,247,.45);
+  background: linear-gradient(135deg, rgba(122,162,247,.14), rgba(176,96,255,.10));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 4px 16px rgba(122,162,247,.28),
+    drop-shadow(0 0 8px rgba(122,162,247,.18));
+  transform: translateY(-1.5px);
+}
+.model-plus-btn:hover:not(:disabled) svg {
+  stroke: #fff;
+  transform: rotate(90deg);
+}
+.model-plus-btn:active:not(:disabled) svg {
+  transform: rotate(90deg) scale(.85);
+}
+.model-plus-btn.on {
+  border-color: rgba(122,162,247,.55);
+  background: linear-gradient(135deg, rgba(122,162,247,.18), rgba(176,96,255,.12));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.08),
+    0 0 0 3px rgba(122,162,247,.12),
+    0 4px 20px rgba(122,162,247,.3);
+}
+.model-plus-btn.on svg {
+  stroke: #fff;
+  transform: rotate(45deg);
+}
+
+.model-popup {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  min-width: 280px;
+  background: linear-gradient(180deg, #1c2130 0%, #171b26 100%);
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.06),
+    0 24px 60px rgba(0,0,0,.65),
+    0 4px 16px rgba(0,0,0,.3);
+  padding: 18px 16px 14px;
+  z-index: 60;
+  animation: modelPop .22s cubic-bezier(.34,1.4,.64,1);
+  overflow: hidden;
+}
+@keyframes modelPop {
+  from { opacity: 0; transform: translateY(10px) scale(.94); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.model-popup::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(122,162,247,.35), transparent);
+}
+.model-popup > strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #6b7186;
+  margin-bottom: 12px;
+  padding-left: 4px;
+}
 .model-opt {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 12px; border-radius: 10px;
-  border: none; background: transparent;
-  color: var(--text); font-size: 14px; cursor: pointer;
-  text-align: left; transition: all .12s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% + 8px);
+  margin-left: -4px;
+  padding: 13px 14px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14.5px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background .16s ease,
+    border-color .16s ease,
+    color .16s ease,
+    transform .12s ease;
 }
-.model-opt:hover { background: rgba(255,255,255,.06); }
-.model-opt.sel { background: rgba(122,162,247,.14); }
+.model-opt:hover {
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.07);
+  transform: translateX(2px);
+}
+.model-opt.sel {
+  background: linear-gradient(120deg,
+    rgba(122,162,247,.12),
+    rgba(176,96,255,.07));
+  border-color: rgba(122,162,247,.28);
+  color: var(--text);
+}
+.model-opt.sel:hover {
+  border-color: rgba(122,162,247,.4);
+  transform: none;
+}
 .model-opt .dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+  opacity: .9;
 }
-.model-opt .check { margin-left: auto; color: var(--accent); font-weight: 800; }
-.model-note { font-size: 11.5px; color: #565c6e; margin-top: 6px; }
+.model-opt.sel .dot {
+  box-shadow: 0 0 12px currentColor, 0 0 3px currentColor;
+  opacity: 1;
+}
+.model-opt .model-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.model-opt .model-label {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.model-opt.sel .model-label { color: #fff; }
+.model-opt .model-desc {
+  font-size: 11.5px;
+  color: #6b7186;
+}
+.model-opt.sel .model-desc { color: #8b93a5; }
+.model-opt .check-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #43e97b, #38f9d7);
+  animation: checkPop .25s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes checkPop { from { transform: scale(0); } to { transform: scale(1); } }
+.model-opt .check-icon svg {
+  width: 12px; height: 12px;
+  stroke: #10131c;
+  stroke-width: 3;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.model-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #565c6e;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}

@@ -437,23 +437,38 @@ export default function Chat({ character, onExit }) {
 
       <footer className="composer">
         <div className="model-sel-wrap">
-          <button className="model-plus-btn" onClick={() => setShowModelSel(v => !v)}
-            title="모델 변경">＋</button>
+          <button className={`model-plus-btn ${showModelSel ? 'on' : ''}`} onClick={() => setShowModelSel(v => !v)}
+            title="모델 변경">
+            <svg viewBox="0 0 24 24">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
           {showModelSel && (
             <div className="model-popup">
               <strong>모델 선택</strong>
-              {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4'}]).map(m => (
-                <button key={m.key} className={`model-opt ${selectedModel.key === m.key ? 'sel' : ''}`}
+              {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4', desc:''}]).map(m => {
+                const sel = selectedModel.key === m.key
+                return (
+                <button key={m.key} className={`model-opt ${sel ? 'sel' : ''}`}
                   onClick={() => {
                     setSelectedModel({ key: m.key, label: m.label })
                     setShowModelSel(false)
                   }}>
-                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#43e97b' : '#7aa2f7' }} />
-                  {m.label}
-                  {selectedModel.key === m.key && <span className="check">✓</span>}
+                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7', color: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7' }} />
+                  <span className="model-name">
+                    <span className="model-label">{m.label}</span>
+                    <span className="model-desc">{m.desc || ''}</span>
+                  </span>
+                  {sel && (
+                    <span className="check-icon">
+                      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                  )}
                 </button>
-              ))}
-              <p className="model-note">모델말투·속도가 달라질 수 있어요.</p>
+                )
+              })}
+              <p className="model-note">💡 모델말투·속도·품질이 달라집니다.</p>
             </div>
           )}
         </div>
