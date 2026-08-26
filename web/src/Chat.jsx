@@ -436,36 +436,47 @@ export default function Chat({ character, onExit }) {
       )}
 
       <footer className="composer">
-        <div className="model-sel-wrap">
-          <button className={`model-plus-btn ${showModelSel ? 'on' : ''}`} onClick={() => setShowModelSel(v => !v)}
-            title="모델 변경">
-            <svg viewBox="0 0 24 24">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
+        <div style={{ position: 'relative' }}>
+          <button onClick={() => setShowModelSel(v => !v)} style={{
+            width: 44, height: 48, borderRadius: 12,
+            border: '1px solid #3d4557', background: '#1e2330',
+            color: '#c6cad6', fontSize: 22, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>+</button>
           {showModelSel && (
-            <div className="model-popup">
-              <strong>모델 선택</strong>
+            <div style={{
+              position: 'absolute', bottom: 56, left: 0, zIndex: 100,
+              width: 280, background: '#1a1f2b',
+              border: '1px solid #3d4557', borderRadius: 14,
+              boxShadow: '0 16px 40px rgba(0,0,0,.6)',
+              padding: 8,
+            }}>
+              <div style={{ padding: '8px 10px 4px', fontSize: 11, fontWeight: 700, color: '#6b7186', letterSpacing: 1 }}>
+                모델 선택
+              </div>
               {(models.length > 0 ? models : [{key:'gemma4', label:'Gemma 4'}]).map(m => {
                 const sel = selectedModel.key === m.key
                 return (
-                <button key={m.key} className={`model-opt ${sel ? 'sel' : ''}`}
-                  onClick={() => {
+                  <button key={m.key} onClick={() => {
                     setSelectedModel({ key: m.key, label: m.label })
                     setShowModelSel(false)
+                  }} style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '11px 12px', marginBottom: 2,
+                    border: 'none', borderRadius: 9,
+                    background: sel ? '#2a3040' : 'transparent',
+                    color: sel ? '#fff' : '#aab0bd',
+                    fontSize: 15, fontWeight: sel ? 700 : 400,
+                    cursor: 'pointer',
                   }}>
-                  <span className="dot" style={{ background: m.key === 'gemini_35_flash_lite' ? '#b060ff' : '#7aa2f7' }} />
-                  <span className="model-label">{m.label}</span>
-                  {sel && (
-                    <span className="check-icon">
-                      <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
-                    </span>
-                  )}
-                </button>
+                    {sel && <span style={{ marginRight: 6 }}>✓</span>}
+                    {m.label}
+                  </button>
                 )
               })}
-              <p className="model-note">모델말투·속도가 달라집니다.</p>
+              <p style={{ margin: '6px 10px 2px', fontSize: 11, color: '#565c6e' }}>
+                모델말투·속도가 달라집니다.
+              </p>
             </div>
           )}
         </div>
