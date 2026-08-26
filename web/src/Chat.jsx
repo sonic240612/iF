@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { authHeaders, notifyAuthExpired } from './api.js'
+import { authHeaders, notifyAuthExpired, apiJson } from './api.js'
 
 const MOOD_THEMES = {
   cold:         { name: '냉담',   accent: '#7aa2f7' },
@@ -53,6 +53,8 @@ export default function Chat({ character, onExit }) {
   const [confirmReset, setConfirmReset] = useState(false)
   const [patchText, setPatchText] = useState('')
   const [patchSavedAt, setPatchSavedAt] = useState(null)
+  const [showMem, setShowMem] = useState(false)
+  const [memList, setMemList] = useState([])
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef(null)
 
@@ -105,6 +107,21 @@ export default function Chat({ character, onExit }) {
     } catch { setPatchSavedAt(null) }
   }
 
+
+  async function loadMemories() {
+    try {
+      const data = await apiJson(`/api/sessions/${sessKey}/memories`)
+      setMemList(data.memories || [])
+    } catch {}
+  }
+
+  async function delMemory(mid) {
+    try {
+      await apiJson(`/api/sessions/${sessKey}/memories/${mid}`, 'DELETE')
+      setMemList(l => l.filter(m => m.id !== mid))
+    } catch {}
+  }
+
   async function resetChat() {
     await fetch(`/api/sessions/${sessKey}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {})
     setMessages([{ role: 'assistant', content: character.first_message }])
@@ -113,6 +130,29 @@ export default function Chat({ character, onExit }) {
     setMemoryNote('')
     setPatchText('')
     setConfirmReset(false)
+  }
+
+
+  // 대화를 보기 좋은 텍스트 파일로 내려받기
+  function exportChat() {
+    const lines = []
+    lines.push(`iF 대화 기록 — ${character.name}`)
+    lines.push(`내보낸 날짜: ${new Date().toLocaleString('ko-KR')}`)
+    if (state?.turn > 0) lines.push(`대화 턴 수: ${state.turn} · 감정: 호감 ${Math.round(state.affection)} / 집착 ${Math.round(state.obsession)} / 질투 ${Math.round(state.jealousy)}`)
+    lines.push('─'.repeat(40))
+    for (const m of messages) {
+      const who = m.role === 'user' ? `나` : `${character.name}`
+      lines.push('')
+      lines.push(`[${who}]`)
+      lines.push(m.content)
+    }
+    const blob = new Blob([lines.join('\\n\\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `iF_${character.name}_대화기록.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // SSE 스트리밍으로 응답을 실시간 수신. action이 있으면 '선택한 행동'으로 전송
@@ -235,8 +275,14 @@ export default function Chat({ character, onExit }) {
             ● {theme.name}{state?.turn > 0 ? ` · ${state.turn}턴` : ''}
           </span>
         </div>
-        <button className={`patch-btn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => setShowPatch(v => !v)}>
-          📝 <span className="patch-label">유저 패치</span>
+        <button className={`hbtn ${showPatch ? 'on' : ''}`} title="AI가 항상 기억할 정보를 지정합니다" onClick={() => { setShowPatch(v => !v); setShowMem(false) }}>
+          📝 <span className="btn-label">유저 패치</span>
+        </button>
+        <button className={`hbtn ${showMem ? 'on' : ''}`} title="장기기억 관리" onClick={() => { setShowMem(v => { if (!v) loadMemories(); return !v }) }}>
+          🧠 <span className="btn-label">기억</span>
+        </button>
+        <button className={`hbtn export`} title="대화 내보내기" onClick={exportChat}>
+          📄 <span className="btn-label">내보내기</span>
         </button>
         <button className="reset-btn" title="대화 기록과 감정·기억을 초기화합니다" onClick={() => setConfirmReset(true)}>
           🗑 <span className="btn-label">초기화</span>

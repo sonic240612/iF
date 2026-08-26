@@ -243,6 +243,21 @@ def edit_character(character_id: str, req: EditCharacterRequest, user: str = Dep
 
 
 
+@app.get("/sessions/{session_id}/memories")
+def list_session_memories(session_id: str, user: str = Depends(current_user)) -> dict:
+    """장기기억 목록 조회 (기억 관리 패널용)."""
+    skey = session_key(user, session_id)
+    return {"memories": memory_store.list_memories(skey)}
+
+
+@app.delete("/sessions/{session_id}/memories/{memory_id}")
+def remove_session_memory(session_id: str, memory_id: str, user: str = Depends(current_user)) -> dict:
+    ok = memory_store.delete_memory(session_key(user, session_id), memory_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="memory not found")
+    return {"status": "deleted", "total_memories": memory_store.count_memories(skey := session_key(user, session_id))}
+
+
 @app.get("/sessions/{session_id}/history")
 def get_history(session_id: str, user: str = Depends(current_user)) -> dict:
     """재접속 시 이전 대화 복원용 (유저별 격리)."""

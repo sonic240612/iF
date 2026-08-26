@@ -205,6 +205,23 @@ def test_memory_semantic_fallback(tmp_memory_db):
     assert len(found) == 1
 
 
+def test_memory_list_and_delete(tmp_memory_db):
+    """기억 목록 조회 + 개별 삭제 (id 기반)."""
+    store = tmp_memory_db
+    store.save_memory("ml", 1, "첫 번째 기억")
+    store.save_memory("ml", 2, "두 번째 기억")
+
+    lst = store.list_memories("ml")
+    assert len(lst) == 2
+    target = next(x for x in lst if x["text"] == "두 번째 기억")
+
+    assert store.delete_memory("ml", target["id"]) is True
+    rest = store.list_memories("ml")
+    assert len(rest) == 1 and rest[0]["text"] == "첫 번째 기억"
+    # 없는 ID 삭제 → False
+    assert store.delete_memory("ml", "nonexistent") is False
+
+
 def test_history_persistence(tmp_memory_db):
     store = tmp_memory_db
     store.save_history("s1", [{"role": "user", "content": "안녕"}])

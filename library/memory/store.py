@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import uuid
 import os
 import re
 import sqlite3
@@ -169,7 +170,8 @@ def save_memory(session_id: str, turn: int, text: str) -> bool:
 
     if _redis():
         try:
-            entry = json.dumps({"turn": turn, "text": text.strip(), "embedding": emb_json}, ensure_ascii=False)
+            mid = uuid.uuid4().hex[:12]
+            entry = json.dumps({"id": mid, "turn": turn, "text": text.strip(), "embedding": emb_json}, ensure_ascii=False)
             r = _redis()
             pipe = r.pipeline()
             pipe.rpush(MEM_KEY_PREFIX + session_id, entry)
@@ -217,6 +219,77 @@ def maybe_summarize(session_id: str, turn: int, history: list[dict]) -> bool:
     if turn > 0 and turn % SUMMARY_INTERVAL == 0 and len(history) >= 4:
         return summarize_and_store(session_id, turn, history) is not None
     return False
+
+
+def list_memories(session_id: str) -> list[dict]:
+    """세션의 모든 장기기억 목록 (최신순, [{id, text}])."""
+    out = []
+    r = _redis()
+    if r:
+        try:
+            entries = r.lrange(MEM_KEY_PREFIX + session_id, -MAX_MEMORIES, -1)
+            for e in entries:
+                d = json.loads(e)
+                out.append({"id": d.get("id") or _synth_id(d.get("text", "")), "text": d.get("text", "")})
+            return out
+        except Exception:
+            pass
+    if not _sqlite_ok():
+        return []
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, text FROM memories WHERE session_id = ? ORDER BY id DESC",
+            (session_id,),
+        ).fetchall()
+    return [{"id": str(rid), "text": text} for rid, text in rows]
+
+
+def _synth_id(text: str) -> str:
+    """구형(Redis 무ID) 항목용 합성 ID — 텍스트 해시 기반."""
+    import hashlib
+    return "h" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def delete_memory(session_id: str, memory_id: str) -> bool:
+    """개별 기억 삭제. Redis/SQLite 양쪽 경로 지원."""
+    r = _redis()
+    if r:
+        try:
+            key = MEM_KEY_PREFIX + session_id
+            entries = r.lrange(key, 0, -1)
+            kept = []
+            removed = False
+            for e in entries:
+                d = json.loads(e)
+                eid = d.get("id") or _synth_id(d.get("text", ""))
+                if eid == memory_id:
+                    removed = True
+                    continue
+                kept.append(e)
+            if removed:
+                pipe = r.pipeline()
+                pipe.delete(key)
+                for e in reversed([e for e in kept]):
+                    # lrange는 최신순이므로 원래 순서 복원
+                    pass
+                # 원본 순서 유지가 중요하지 않으므로 kept 순서대로 재저장
+                for e in kept:
+                    pipe.rpush(key, e)
+                pipe.execute()
+            return removed
+        except Exception as e:
+            print(f"[memory] Redis 개별 삭제 실패: {e}")
+    if not _sqlite_ok():
+        return False
+    try:
+        with _conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM memories WHERE session_id = ? AND id = ?",
+                (session_id, int(memory_id)),
+            )
+            return cur.rowcount > 0
+    except (ValueError, sqlite3.Error):
+        return False
 
 
 def count_memories(session_id: str | None = None) -> int:

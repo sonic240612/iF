@@ -5,7 +5,7 @@ import Chat from './Chat.jsx'
 import CreateCharacter from './CreateCharacter.jsx'
 import EditCharacter from './EditCharacter.jsx'
 import AuthPage from './AuthPage.jsx'
-import { getAuth, clearAuth, authHeaders, notifyAuthExpired, setOnAuthExpired } from './api.js'
+import { getAuth, clearAuth, authHeaders, notifyAuthExpired, setOnAuthExpired, apiJson } from './api.js'
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => getAuth()?.nickname || null)
@@ -66,6 +66,12 @@ export default function App() {
   if (view === 'create') {
     return <CreateCharacter onCreated={(card) => { setSelectedId(card.id); refresh(); setView('chat') }} onBack={() => setView('home')} />
   }
+  async function deleteCharacter(card) {
+    await apiJson(`/api/characters/${card.id}`, 'DELETE')
+    refresh()
+    setSelectedId(null)
+    setView('home')
+  }
   if (view === 'edit' && selected) {
     return (
       <EditCharacter
@@ -83,6 +89,7 @@ export default function App() {
         onBack={() => setView('home')}
         onStart={() => { setView('chat'); window.scrollTo(0, 0) }}
         onEdit={() => { setView('edit'); window.scrollTo(0, 0) }}
+        onDelete={() => deleteCharacter(selected)}
       />
     )
   }

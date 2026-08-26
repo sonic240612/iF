@@ -667,3 +667,36 @@ button { font-family: inherit; }
   border-radius: 999px; transition: all .15s;
 }
 .edit-pill:hover { background: rgba(255,255,255,.32); }
+
+/* ── 헤더 필 버튼 통합 스타일 ── */
+.hbtn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid #2a3040; background: transparent;
+  color: var(--text-dim); font-size: 13px;
+  cursor: pointer; transition: all .15s;
+}
+.hbtn:hover { border-color: var(--accent); color: var(--accent); }
+.hbtn.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent); font-weight: 700;
+}
+.hbtn.export:hover { border-color: #43e97b; color: #43e97b; }
+
+/* ── 기억 목록 ── */
+.mem-empty {
+  text-align: center; color: #565c6e; font-size: 12.5px; padding: 10px;
+}
+.mem-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 12px; border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  font-size: 13px; line-height: 1.5;
+}
+.mem-text { flex: 1; word-break: keep-all; }
+.mem-del {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 13px; padding: 2px 4px;
+}
+.mem-del:hover { color: #ff6b6b; }

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 
-export default function CharacterDetail({ character, user, onBack, onStart, onEdit }) {
+export default function CharacterDetail({ character, user, onBack, onStart, onEdit, onDelete }) {
   return (
     <div className="detail">
       <button className="back-btn" onClick={onBack}>← 목록</button>
@@ -13,7 +13,10 @@ export default function CharacterDetail({ character, user, onBack, onStart, onEd
             <span className="pill genre">{character.genre}</span>
             {character.tags.map(t => <span key={t} className="pill">{t}</span>)}
             {character.creator === user && (
-              <button className="pill edit-pill" onClick={onEdit}>✏️ 수정</button>
+              <>
+                <button className="pill edit-pill" onClick={onEdit}>✏️ 수정</button>
+                <button className="pill del-pill" onClick={() => setConfirmDel(true)}>🗑 삭제</button>
+              </>
             )}
           </div>
         </div>
@@ -42,6 +45,19 @@ export default function CharacterDetail({ character, user, onBack, onStart, onEd
           ))}
           <p className="example-note">※ 실제 대화는 감정 상태(호감·집착·질투)에 따라 매번 달라집니다.</p>
         </section>
+      )}
+
+      {confirmDel && (
+        <div className="modal-overlay" onClick={() => setConfirmDel(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>⚠️ 캐릭터를 삭제할까요?</h3>
+            <p>'{character.name}' 카드가 영구히 삭제되며<br />되돌릴 수 없습니다.</p>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setConfirmDel(false)}>취소</button>
+              <button className="btn-danger" onClick={() => { setConfirmDel(false); onDelete() }}>삭제</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="detail-cta-wrap">
