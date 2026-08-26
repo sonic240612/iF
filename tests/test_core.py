@@ -89,6 +89,15 @@ def test_compile_user_patch_always_injected():
     assert "유저 패치" in p and "묘사는 짧고 문학적으로" in p
 
 
+def test_compile_linebreak_rule_present():
+    """묘사/대사 구분 줄바꿈 규칙이 시스템 프롬프트에 항상 포함된다."""
+    from library.inference.prompt_compiler import compile_prompt
+    from library.fsm.engine import EmotionState
+
+    p = compile_prompt({"system_prompt": "기본"}, EmotionState(turn=1), [], "안녕")
+    assert "줄바꿈" in p
+
+
 def test_sanitize_reply_strips_meta_blocks():
     from library.api import sanitize_reply
 
@@ -203,6 +212,17 @@ def test_memory_semantic_fallback(tmp_memory_db):
     store.save_memory("sess_x", 1, "유저와 산책을 약속했다")
     found = store.search_memories("sess_x", "산책")
     assert len(found) == 1
+
+
+def test_emotion_history_cleared_on_reset(tmp_memory_db):
+    """대화 초기화 시 감정 히스토리도 함께 삭제된다 (기억만 지워지던 버그)."""
+    store = tmp_memory_db
+    store.record_emotion("sess_a", 1, {"affection": 10, "obsession": 5, "enmity": 0, "jealousy": 0})
+    store.record_emotion("sess_a", 2, {"affection": 20, "obsession": 8, "enmity": 0, "jealousy": 0})
+    assert len(store.get_emotion_history("sess_a")) == 2
+
+    store.delete_history("sess_a")
+    assert store.get_emotion_history("sess_a") == []
 
 
 def test_memory_list_and_delete(tmp_memory_db):

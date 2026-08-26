@@ -418,16 +418,26 @@ def save_history(session_id: str, history: list[dict]) -> None:
 
 
 def delete_history(session_id: str) -> None:
-    """대화 초기화: 히스토리 + 장기기억 모두 삭제."""
+    """대화 초기화: 히스토리 + 장기기억 + 감정 히스토리 모두 삭제."""
     if _redis():
         try:
-            _redis().delete(MEM_KEY_PREFIX + session_id, HIST_KEY_PREFIX + session_id)
+            _redis().delete(
+                MEM_KEY_PREFIX + session_id,
+                HIST_KEY_PREFIX + session_id,
+                EMO_KEY_PREFIX + session_id,
+            )
         except Exception as e:
             print(f"[memory] Redis 삭제 실패: {e}")
     if not _sqlite_ok():
         return
     with _conn() as conn:
         conn.execute("DELETE FROM memories WHERE session_id=?", (session_id,))
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS emotion_history ("
+            "session_id TEXT, turn INTEGER, affection REAL, obsession REAL,"
+            "enmity REAL, jealousy REAL, created_at REAL)"
+        )
+        conn.execute("DELETE FROM emotion_history WHERE session_id=?", (session_id,))
         conn.execute(
             "CREATE TABLE IF NOT EXISTS histories (session_id TEXT PRIMARY KEY, data TEXT NOT NULL, updated_at REAL NOT NULL)"
         )
