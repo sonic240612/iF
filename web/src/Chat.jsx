@@ -442,10 +442,7 @@ export default function Chat({ character, onExit }) {
 
       <footer className="composer">
         <div style={{ position: 'relative' }}>
-          <button onClick={() => {
-            try { setSelectedModel(JSON.parse(localStorage.getItem('if_model') || 'null') || { key: 'gemma4', label: 'Gemma 4' }) } catch {}
-            setShowModelSel(v => !v)
-          }} style={{
+          <button onClick={() => setShowModelSel(v => !v)} style={{
             width: 44, height: 48, borderRadius: 12,
             border: '1px solid #3d4557', background: '#1e2330',
             color: '#c6cad6', fontSize: 22, cursor: 'pointer',
@@ -466,7 +463,9 @@ export default function Chat({ character, onExit }) {
                 const sel = selectedModel.key === m.key
                 return (
                   <button key={m.key} onClick={() => {
-                    setSelectedModel({ key: m.key, label: m.label })
+                    const next = { key: m.key, label: m.label }
+                    setSelectedModel(next)
+                    try { localStorage.setItem('if_model', JSON.stringify(next)) } catch {}
                     setShowModelSel(false)
                   }} style={{
                     display: 'block', width: '100%', textAlign: 'left',
